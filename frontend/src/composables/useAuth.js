@@ -7,6 +7,11 @@ const loading = ref(true)
 export function useAuth() {
   const isAuthenticated = computed(() => !!user.value)
   const isAdmin = computed(() => user.value?.role === 'admin')
+  const canRead = computed(() => user.value?.permissions?.can_read ?? true)
+  const canDownload = computed(() => user.value?.permissions?.can_download ?? true)
+  const canUpload = computed(() => user.value?.permissions?.can_upload ?? false)
+  const canEdit = computed(() => user.value?.permissions?.can_edit ?? false)
+  const canDelete = computed(() => user.value?.permissions?.can_delete ?? false)
 
   async function checkAuth() {
     loading.value = true
@@ -76,6 +81,11 @@ export function useAuth() {
     user,
     isAuthenticated,
     isAdmin,
+    canRead,
+    canDownload,
+    canUpload,
+    canEdit,
+    canDelete,
     setupRequired,
     loading,
     checkAuth,

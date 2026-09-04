@@ -59,10 +59,57 @@ func Open(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("failed to apply initial schema migration: %w", err)
 	}
 
+	// Apply migrations for existing databases
+	if err := migrateSchema(conn); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to migrate schema: %w", err)
+	}
+
 	queries := New(conn)
 
 	return &DB{
 		DB:      conn,
 		Queries: queries,
 	}, nil
+}
+
+func migrateSchema(conn *sql.DB) error {
+	// Check columns in users table
+	rows, err := conn.Query("PRAGMA table_info(users)")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	existingCols := make(map[string]bool)
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dfltValue sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err == nil {
+			existingCols[name] = true
+		}
+	}
+
+	colsToAdd := []struct {
+		name string
+		def  string
+	}{
+		{"can_read", "INTEGER NOT NULL DEFAULT 1"},
+		{"can_download", "INTEGER NOT NULL DEFAULT 1"},
+		{"can_upload", "INTEGER NOT NULL DEFAULT 0"},
+		{"can_edit", "INTEGER NOT NULL DEFAULT 0"},
+		{"can_delete", "INTEGER NOT NULL DEFAULT 0"},
+	}
+
+	for _, col := range colsToAdd {
+		if !existingCols[col.name] {
+			alterSQL := fmt.Sprintf("ALTER TABLE users ADD COLUMN %s %s;", col.name, col.def)
+			if _, err := conn.Exec(alterSQL); err != nil {
+				return fmt.Errorf("failed adding column %s: %w", col.name, err)
+			}
+		}
+	}
+	return nil
 }

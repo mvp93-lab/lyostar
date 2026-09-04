@@ -176,9 +176,12 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (username, password_hash, role, display_name)
-VALUES (?, ?, ?, ?)
-RETURNING id, username, password_hash, role, display_name, created_at, updated_at
+INSERT INTO users (
+    username, password_hash, role, display_name,
+    can_read, can_download, can_upload, can_edit, can_delete
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, username, password_hash, role, display_name, can_read, can_download, can_upload, can_edit, can_delete, created_at, updated_at
 `
 
 type CreateUserParams struct {
@@ -186,6 +189,11 @@ type CreateUserParams struct {
 	PasswordHash string `json:"password_hash"`
 	Role         string `json:"role"`
 	DisplayName  string `json:"display_name"`
+	CanRead      int64  `json:"can_read"`
+	CanDownload  int64  `json:"can_download"`
+	CanUpload    int64  `json:"can_upload"`
+	CanEdit      int64  `json:"can_edit"`
+	CanDelete    int64  `json:"can_delete"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -194,6 +202,11 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.PasswordHash,
 		arg.Role,
 		arg.DisplayName,
+		arg.CanRead,
+		arg.CanDownload,
+		arg.CanUpload,
+		arg.CanEdit,
+		arg.CanDelete,
 	)
 	var i User
 	err := row.Scan(
@@ -202,6 +215,11 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.PasswordHash,
 		&i.Role,
 		&i.DisplayName,
+		&i.CanRead,
+		&i.CanDownload,
+		&i.CanUpload,
+		&i.CanEdit,
+		&i.CanDelete,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -426,7 +444,8 @@ func (q *Queries) GetProgress(ctx context.Context, arg GetProgressParams) (Readi
 }
 
 const getSessionWithUser = `-- name: GetSessionWithUser :one
-SELECT s.token, s.user_id, s.expires_at, u.username, u.role, u.display_name
+SELECT s.token, s.user_id, s.expires_at, u.username, u.role, u.display_name,
+       u.can_read, u.can_download, u.can_upload, u.can_edit, u.can_delete
 FROM sessions s
 JOIN users u ON s.user_id = u.id
 WHERE s.token = ? AND s.expires_at > CURRENT_TIMESTAMP
@@ -440,6 +459,11 @@ type GetSessionWithUserRow struct {
 	Username    string    `json:"username"`
 	Role        string    `json:"role"`
 	DisplayName string    `json:"display_name"`
+	CanRead     int64     `json:"can_read"`
+	CanDownload int64     `json:"can_download"`
+	CanUpload   int64     `json:"can_upload"`
+	CanEdit     int64     `json:"can_edit"`
+	CanDelete   int64     `json:"can_delete"`
 }
 
 func (q *Queries) GetSessionWithUser(ctx context.Context, token string) (GetSessionWithUserRow, error) {
@@ -452,12 +476,17 @@ func (q *Queries) GetSessionWithUser(ctx context.Context, token string) (GetSess
 		&i.Username,
 		&i.Role,
 		&i.DisplayName,
+		&i.CanRead,
+		&i.CanDownload,
+		&i.CanUpload,
+		&i.CanEdit,
+		&i.CanDelete,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, password_hash, role, display_name, created_at, updated_at FROM users
+SELECT id, username, password_hash, role, display_name, can_read, can_download, can_upload, can_edit, can_delete, created_at, updated_at FROM users
 WHERE id = ? LIMIT 1
 `
 
@@ -470,6 +499,11 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 		&i.PasswordHash,
 		&i.Role,
 		&i.DisplayName,
+		&i.CanRead,
+		&i.CanDownload,
+		&i.CanUpload,
+		&i.CanEdit,
+		&i.CanDelete,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -477,7 +511,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, username, password_hash, role, display_name, created_at, updated_at FROM users
+SELECT id, username, password_hash, role, display_name, can_read, can_download, can_upload, can_edit, can_delete, created_at, updated_at FROM users
 WHERE username = ? LIMIT 1
 `
 
@@ -490,6 +524,11 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 		&i.PasswordHash,
 		&i.Role,
 		&i.DisplayName,
+		&i.CanRead,
+		&i.CanDownload,
+		&i.CanUpload,
+		&i.CanEdit,
+		&i.CanDelete,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -820,7 +859,9 @@ func (q *Queries) ListRecentProgressByUserID(ctx context.Context, arg ListRecent
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, username, role, display_name, created_at, updated_at
+SELECT id, username, role, display_name,
+       can_read, can_download, can_upload, can_edit, can_delete,
+       created_at, updated_at
 FROM users
 ORDER BY id ASC
 `
@@ -830,6 +871,11 @@ type ListUsersRow struct {
 	Username    string    `json:"username"`
 	Role        string    `json:"role"`
 	DisplayName string    `json:"display_name"`
+	CanRead     int64     `json:"can_read"`
+	CanDownload int64     `json:"can_download"`
+	CanUpload   int64     `json:"can_upload"`
+	CanEdit     int64     `json:"can_edit"`
+	CanDelete   int64     `json:"can_delete"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -848,6 +894,11 @@ func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 			&i.Username,
 			&i.Role,
 			&i.DisplayName,
+			&i.CanRead,
+			&i.CanDownload,
+			&i.CanUpload,
+			&i.CanEdit,
+			&i.CanDelete,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1091,6 +1142,93 @@ func (q *Queries) SearchBooksFTSWithAuthorsAndProgress(ctx context.Context, arg 
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateUser = `-- name: UpdateUser :one
+UPDATE users
+SET display_name = ?,
+    role = ?,
+    can_read = ?,
+    can_download = ?,
+    can_upload = ?,
+    can_edit = ?,
+    can_delete = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING id, username, password_hash, role, display_name, can_read, can_download, can_upload, can_edit, can_delete, created_at, updated_at
+`
+
+type UpdateUserParams struct {
+	DisplayName string `json:"display_name"`
+	Role        string `json:"role"`
+	CanRead     int64  `json:"can_read"`
+	CanDownload int64  `json:"can_download"`
+	CanUpload   int64  `json:"can_upload"`
+	CanEdit     int64  `json:"can_edit"`
+	CanDelete   int64  `json:"can_delete"`
+	ID          int64  `json:"id"`
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUser,
+		arg.DisplayName,
+		arg.Role,
+		arg.CanRead,
+		arg.CanDownload,
+		arg.CanUpload,
+		arg.CanEdit,
+		arg.CanDelete,
+		arg.ID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.PasswordHash,
+		&i.Role,
+		&i.DisplayName,
+		&i.CanRead,
+		&i.CanDownload,
+		&i.CanUpload,
+		&i.CanEdit,
+		&i.CanDelete,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateUserPassword = `-- name: UpdateUserPassword :one
+UPDATE users
+SET password_hash = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING id, username, password_hash, role, display_name, can_read, can_download, can_upload, can_edit, can_delete, created_at, updated_at
+`
+
+type UpdateUserPasswordParams struct {
+	PasswordHash string `json:"password_hash"`
+	ID           int64  `json:"id"`
+}
+
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserPassword, arg.PasswordHash, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.PasswordHash,
+		&i.Role,
+		&i.DisplayName,
+		&i.CanRead,
+		&i.CanDownload,
+		&i.CanUpload,
+		&i.CanEdit,
+		&i.CanDelete,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const upsertProgress = `-- name: UpsertProgress :one

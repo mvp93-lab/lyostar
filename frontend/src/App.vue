@@ -206,7 +206,7 @@ import UsersModal from './components/UsersModal.vue'
 import { fetchBooks, searchBooks, triggerScan, fetchContinueReading } from './api/client.js'
 import { useAuth } from './composables/useAuth'
 
-const { isAuthenticated, isAdmin, setupRequired, loading: authLoading, checkAuth } = useAuth()
+const { isAuthenticated, isAdmin, setupRequired, loading: authLoading, checkAuth, canRead } = useAuth()
 
 const books = ref([])
 const continueBooks = ref([])
@@ -306,6 +306,7 @@ async function handleScan() {
 }
 
 function openReader(book) {
+  if (!canRead.value) return
   selectedBook.value = null
   readingBook.value = book
 }

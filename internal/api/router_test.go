@@ -126,6 +126,11 @@ func TestRouterBooksEndpoints(t *testing.T) {
 		PasswordHash: "hashedpass",
 		Role:         "admin",
 		DisplayName:  "Test Admin",
+		CanRead:      1,
+		CanDownload:  1,
+		CanUpload:    1,
+		CanEdit:      1,
+		CanDelete:    1,
 	})
 	if err != nil {
 		t.Fatalf("failed to create admin user: %v", err)

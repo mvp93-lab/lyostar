@@ -56,7 +56,7 @@
       </div>
 
       <!-- Quick Read Floating Overlay -->
-      <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
+      <div v-if="canRead" class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
         <button
           @click.stop="$emit('read', book)"
           class="flex items-center gap-2 px-4 py-2 rounded-xl bg-glacier-500 hover:bg-glacier-400 text-slate-950 font-semibold text-xs shadow-lg shadow-glacier-500/20 transform scale-95 group-hover:scale-100 transition-all cursor-pointer"
@@ -93,6 +93,7 @@
 
 <script setup>
 import { Book, BookOpen, FileText } from 'lucide-vue-next'
+import { useAuth } from '../composables/useAuth'
 
 const props = defineProps({
   book: {
@@ -102,6 +103,7 @@ const props = defineProps({
 })
 
 defineEmits(['select', 'read'])
+const { canRead } = useAuth()
 
 function formatAuthors(authors) {
   if (!authors || authors.length === 0) return 'Unknown Author'

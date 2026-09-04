@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/lyostar/lyostar/internal/auth"
+	"github.com/lyostar/lyostar/internal/database"
 )
 
 func TestAuthFlowAndProtection(t *testing.T) {
@@ -223,3 +226,180 @@ func TestAuthFlowAndProtection(t *testing.T) {
 		}
 	}
 }
+
+func TestGranularUserPermissions(t *testing.T) {
+	db, _, router, tempDir := setupTestDBAndRouter(t)
+	defer os.RemoveAll(tempDir)
+	defer db.Close()
+
+	ctx := t.Context()
+
+	// 1. Create Admin
+	adminPw, _ := auth.HashPassword("AdminPass123")
+	adminUser, err := db.CreateUser(ctx, database.CreateUserParams{
+		Username:     "admin_perm",
+		PasswordHash: adminPw,
+		Role:         auth.RoleAdmin,
+		DisplayName:  "Admin Perm",
+		CanRead:      1,
+		CanDownload:  1,
+		CanUpload:    1,
+		CanEdit:      1,
+		CanDelete:    1,
+	})
+	if err != nil {
+		t.Fatalf("failed to create admin user: %v", err)
+	}
+
+	adminToken := "admin-perm-token"
+	_, _ = db.CreateSession(ctx, database.CreateSessionParams{
+		Token:     adminToken,
+		UserID:    adminUser.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	adminCookie := &http.Cookie{Name: "lyostar_session", Value: adminToken}
+
+	// 2. Create restricted reader with can_download=false via POST /api/users
+	createPayload := CreateUserRequest{
+		Username:    "restricted_reader",
+		Password:    "ReaderPass123",
+		Role:        "reader",
+		DisplayName: "Restricted Reader",
+		Permissions: &auth.Permissions{
+			CanRead:     true,
+			CanDownload: false,
+			CanUpload:   false,
+			CanEdit:     false,
+			CanDelete:   false,
+		},
+	}
+	body, _ := json.Marshal(createPayload)
+	req := httptest.NewRequest(http.MethodPost, "/api/users", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(adminCookie)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for creating restricted user, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var createdUser UserItem
+	if err := json.NewDecoder(rec.Body).Decode(&createdUser); err != nil {
+		t.Fatalf("failed to decode created user: %v", err)
+	}
+	if !createdUser.Permissions.CanRead || createdUser.Permissions.CanDownload {
+		t.Errorf("unexpected permissions: %+v", createdUser.Permissions)
+	}
+
+	// 3. Login as restricted reader
+	loginPayload := LoginRequest{
+		Username: "restricted_reader",
+		Password: "ReaderPass123",
+	}
+	body, _ = json.Marshal(loginPayload)
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginRec := httptest.NewRecorder()
+	router.ServeHTTP(loginRec, loginReq)
+
+	if loginRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for reader login, got %d", loginRec.Code)
+	}
+
+	var readerCookie *http.Cookie
+	for _, c := range loginRec.Result().Cookies() {
+		if c.Name == auth.CookieName {
+			readerCookie = c
+			break
+		}
+	}
+	if readerCookie == nil {
+		t.Fatalf("expected reader session cookie")
+	}
+
+	// 4. Seed a book file
+	bookPath := tempDir + "/test_perm.epub"
+	_ = os.WriteFile(bookPath, []byte("fake epub data"), 0644)
+	book, err := db.CreateBook(ctx, database.CreateBookParams{
+		Title:      "Perm Test Book",
+		FilePath:   bookPath,
+		FileSha256: "sha256perm123",
+		FileSize:   14,
+		Format:     "epub",
+	})
+	if err != nil {
+		t.Fatalf("failed to create book: %v", err)
+	}
+
+	// 5. Restricted reader requests /api/books/{id}/file -> Allowed (200)
+	{
+		fileReq := httptest.NewRequest(http.MethodGet, "/api/books/"+strconv.FormatInt(book.ID, 10)+"/file", nil)
+		fileReq.AddCookie(readerCookie)
+		fileRec := httptest.NewRecorder()
+		router.ServeHTTP(fileRec, fileReq)
+
+		if fileRec.Code != http.StatusOK {
+			t.Errorf("expected 200 for reading book with can_read=true, got %d", fileRec.Code)
+		}
+	}
+
+	// 6. Restricted reader requests /api/books/{id}/download -> Forbidden (403)
+	{
+		dlReq := httptest.NewRequest(http.MethodGet, "/api/books/"+strconv.FormatInt(book.ID, 10)+"/download", nil)
+		dlReq.AddCookie(readerCookie)
+		dlRec := httptest.NewRecorder()
+		router.ServeHTTP(dlRec, dlReq)
+
+		if dlRec.Code != http.StatusForbidden {
+			t.Errorf("expected 403 for downloading book with can_download=false, got %d", dlRec.Code)
+		}
+	}
+
+	// 7. Admin updates reader to can_download=true and can_read=false via PUT /api/users/{id}
+	{
+		updatePayload := UpdateUserRequest{
+			DisplayName: "Updated Reader",
+			Role:        "reader",
+			Permissions: &auth.Permissions{
+				CanRead:     false,
+				CanDownload: true,
+			},
+		}
+		upBody, _ := json.Marshal(updatePayload)
+		putReq := httptest.NewRequest(http.MethodPut, "/api/users/"+strconv.FormatInt(createdUser.ID, 10), bytes.NewReader(upBody))
+		putReq.Header.Set("Content-Type", "application/json")
+		putReq.AddCookie(adminCookie)
+		putRec := httptest.NewRecorder()
+		router.ServeHTTP(putRec, putReq)
+
+		if putRec.Code != http.StatusOK {
+			t.Fatalf("expected 200 for updating user permissions, got %d: %s", putRec.Code, putRec.Body.String())
+		}
+	}
+
+	// 8. Now reader requests download -> Allowed (200)
+	{
+		dlReq := httptest.NewRequest(http.MethodGet, "/api/books/"+strconv.FormatInt(book.ID, 10)+"/download", nil)
+		dlReq.AddCookie(readerCookie)
+		dlRec := httptest.NewRecorder()
+		router.ServeHTTP(dlRec, dlReq)
+
+		if dlRec.Code != http.StatusOK {
+			t.Errorf("expected 200 for download after permission granted, got %d", dlRec.Code)
+		}
+	}
+
+	// 9. Now reader requests file reading -> Forbidden (403)
+	{
+		fileReq := httptest.NewRequest(http.MethodGet, "/api/books/"+strconv.FormatInt(book.ID, 10)+"/file", nil)
+		fileReq.AddCookie(readerCookie)
+		fileRec := httptest.NewRecorder()
+		router.ServeHTTP(fileRec, fileReq)
+
+		if fileRec.Code != http.StatusForbidden {
+			t.Errorf("expected 403 for reading file after can_read revoked, got %d", fileRec.Code)
+		}
+	}
+}
+

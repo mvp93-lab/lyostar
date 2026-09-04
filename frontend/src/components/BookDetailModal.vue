@@ -39,6 +39,7 @@
 
         <div class="mt-5 w-full flex flex-col gap-2.5">
           <button
+            v-if="canRead"
             @click="$emit('read', book)"
             class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-glacier-500 hover:bg-glacier-400 text-slate-950 font-semibold text-sm transition-all shadow-md shadow-glacier-500/20"
           >
@@ -47,7 +48,8 @@
           </button>
 
           <a
-            :href="book.file_url"
+            v-if="canDownload"
+            :href="book.download_url || book.file_url"
             download
             class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-300 hover:text-white text-xs font-medium transition-all"
           >
@@ -116,6 +118,7 @@
 <script setup>
 import { onMounted, onBeforeUnmount } from 'vue'
 import { X, Book, BookOpen, Download, FileText } from 'lucide-vue-next'
+import { useAuth } from '../composables/useAuth'
 
 const props = defineProps({
   book: {
@@ -125,6 +128,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'read'])
+const { canRead, canDownload } = useAuth()
 
 function handleKeyDown(e) {
   if (e.key === 'Escape') {

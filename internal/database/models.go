@@ -69,6 +69,11 @@ type User struct {
 	PasswordHash string    `json:"password_hash"`
 	Role         string    `json:"role"`
 	DisplayName  string    `json:"display_name"`
+	CanRead      int64     `json:"can_read"`
+	CanDownload  int64     `json:"can_download"`
+	CanUpload    int64     `json:"can_upload"`
+	CanEdit      int64     `json:"can_edit"`
+	CanDelete    int64     `json:"can_delete"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }

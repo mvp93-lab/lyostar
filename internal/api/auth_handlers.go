@@ -36,19 +36,29 @@ type LoginRequest struct {
 
 // CreateUserRequest defines payload for POST /api/users.
 type CreateUserRequest struct {
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	Role        string `json:"role"`
-	DisplayName string `json:"display_name"`
+	Username    string            `json:"username"`
+	Password    string            `json:"password"`
+	Role        string            `json:"role"`
+	DisplayName string            `json:"display_name"`
+	Permissions *auth.Permissions `json:"permissions,omitempty"`
+}
+
+// UpdateUserRequest defines payload for PUT /api/users/{id}.
+type UpdateUserRequest struct {
+	DisplayName string            `json:"display_name"`
+	Role        string            `json:"role"`
+	Password    string            `json:"password,omitempty"`
+	Permissions *auth.Permissions `json:"permissions,omitempty"`
 }
 
 // UserItem defines representation of a user item.
 type UserItem struct {
-	ID          int64  `json:"id"`
-	Username    string `json:"username"`
-	Role        string `json:"role"`
-	DisplayName string `json:"display_name"`
-	CreatedAt   string `json:"created_at"`
+	ID          int64            `json:"id"`
+	Username    string           `json:"username"`
+	Role        string           `json:"role"`
+	DisplayName string           `json:"display_name"`
+	Permissions auth.Permissions `json:"permissions"`
+	CreatedAt   string           `json:"created_at"`
 }
 
 // AuthMiddleware inspects session cookie or Authorization header.
@@ -74,6 +84,13 @@ func (c *RouterConfig) AuthMiddleware(next http.Handler) http.Handler {
 					Username:    session.Username,
 					Role:        session.Role,
 					DisplayName: session.DisplayName,
+					Permissions: auth.Permissions{
+						CanRead:     session.CanRead == 1,
+						CanDownload: session.CanDownload == 1,
+						CanUpload:   session.CanUpload == 1,
+						CanEdit:     session.CanEdit == 1,
+						CanDelete:   session.CanDelete == 1,
+					},
 				}
 				ctx = auth.WithUser(ctx, currentUser)
 			}
@@ -105,6 +122,34 @@ func RequireAdmin(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// RequirePermission checks whether the authenticated user has a specific permission.
+func RequirePermission(perm func(p auth.Permissions) bool, actionName string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			user := auth.GetUser(r.Context())
+			if user == nil {
+				writeError(w, http.StatusUnauthorized, "unauthorized: please log in")
+				return
+			}
+			if !perm(user.Permissions) {
+				writeError(w, http.StatusForbidden, "forbidden: "+actionName+" permission required")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequireRead ensures user has can_read capability.
+func RequireRead(next http.Handler) http.Handler {
+	return RequirePermission(func(p auth.Permissions) bool { return p.CanRead }, "read")(next)
+}
+
+// RequireDownload ensures user has can_download capability.
+func RequireDownload(next http.Handler) http.Handler {
+	return RequirePermission(func(p auth.Permissions) bool { return p.CanDownload }, "download")(next)
 }
 
 // RegisterAuthRoutes mounts auth-related routes.
@@ -168,6 +213,11 @@ func (c *RouterConfig) RegisterAuthRoutes(r chi.Router) {
 				PasswordHash: hash,
 				Role:         auth.RoleAdmin,
 				DisplayName:  displayName,
+				CanRead:      1,
+				CanDownload:  1,
+				CanUpload:    1,
+				CanEdit:      1,
+				CanDelete:    1,
 			})
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "failed to create admin user")
@@ -200,6 +250,13 @@ func (c *RouterConfig) RegisterAuthRoutes(r chi.Router) {
 					Username:    user.Username,
 					Role:        user.Role,
 					DisplayName: user.DisplayName,
+					Permissions: auth.Permissions{
+						CanRead:     user.CanRead == 1,
+						CanDownload: user.CanDownload == 1,
+						CanUpload:   user.CanUpload == 1,
+						CanEdit:     user.CanEdit == 1,
+						CanDelete:   user.CanDelete == 1,
+					},
 				},
 			})
 		})
@@ -258,6 +315,13 @@ func (c *RouterConfig) RegisterAuthRoutes(r chi.Router) {
 					Username:    user.Username,
 					Role:        user.Role,
 					DisplayName: user.DisplayName,
+					Permissions: auth.Permissions{
+						CanRead:     user.CanRead == 1,
+						CanDownload: user.CanDownload == 1,
+						CanUpload:   user.CanUpload == 1,
+						CanEdit:     user.CanEdit == 1,
+						CanDelete:   user.CanDelete == 1,
+					},
 				},
 			})
 		})
@@ -298,7 +362,14 @@ func (c *RouterConfig) RegisterAuthRoutes(r chi.Router) {
 					Username:    u.Username,
 					Role:        u.Role,
 					DisplayName: u.DisplayName,
-					CreatedAt:   formatTime(u.CreatedAt),
+					Permissions: auth.Permissions{
+						CanRead:     u.CanRead == 1,
+						CanDownload: u.CanDownload == 1,
+						CanUpload:   u.CanUpload == 1,
+						CanEdit:     u.CanEdit == 1,
+						CanDelete:   u.CanDelete == 1,
+					},
+					CreatedAt: formatTime(u.CreatedAt),
 				})
 			}
 
@@ -335,11 +406,34 @@ func (c *RouterConfig) RegisterAuthRoutes(r chi.Router) {
 				displayName = req.Username
 			}
 
+			var canRead, canDownload, canUpload, canEdit, canDelete int64
+			if req.Permissions != nil {
+				if req.Permissions.CanRead { canRead = 1 }
+				if req.Permissions.CanDownload { canDownload = 1 }
+				if req.Permissions.CanUpload { canUpload = 1 }
+				if req.Permissions.CanEdit { canEdit = 1 }
+				if req.Permissions.CanDelete { canDelete = 1 }
+			} else {
+				// Default permissions: Readers can read & download. Admins have all permissions.
+				canRead = 1
+				canDownload = 1
+				if role == auth.RoleAdmin {
+					canUpload = 1
+					canEdit = 1
+					canDelete = 1
+				}
+			}
+
 			user, err := c.DB.CreateUser(r.Context(), database.CreateUserParams{
 				Username:     req.Username,
 				PasswordHash: hash,
 				Role:         role,
 				DisplayName:  displayName,
+				CanRead:      canRead,
+				CanDownload:  canDownload,
+				CanUpload:    canUpload,
+				CanEdit:      canEdit,
+				CanDelete:    canDelete,
 			})
 			if err != nil {
 				if strings.Contains(err.Error(), "UNIQUE constraint failed") {
@@ -355,7 +449,131 @@ func (c *RouterConfig) RegisterAuthRoutes(r chi.Router) {
 				Username:    user.Username,
 				Role:        user.Role,
 				DisplayName: user.DisplayName,
-				CreatedAt:   formatTime(user.CreatedAt),
+				Permissions: auth.Permissions{
+					CanRead:     user.CanRead == 1,
+					CanDownload: user.CanDownload == 1,
+					CanUpload:   user.CanUpload == 1,
+					CanEdit:     user.CanEdit == 1,
+					CanDelete:   user.CanDelete == 1,
+				},
+				CreatedAt: formatTime(user.CreatedAt),
+			})
+		})
+
+		// PUT /api/users/{id}
+		usersGroup.Put("/{id}", func(w http.ResponseWriter, r *http.Request) {
+			targetID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "invalid user id")
+				return
+			}
+
+			existing, err := c.DB.GetUserByID(r.Context(), targetID)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					writeError(w, http.StatusNotFound, "user not found")
+					return
+				}
+				writeError(w, http.StatusInternalServerError, "database error")
+				return
+			}
+
+			var req UpdateUserRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				writeError(w, http.StatusBadRequest, "invalid request body")
+				return
+			}
+
+			displayName := strings.TrimSpace(req.DisplayName)
+			if displayName == "" {
+				displayName = existing.DisplayName
+			}
+
+			role := strings.ToLower(strings.TrimSpace(req.Role))
+			if role == "" {
+				role = existing.Role
+			} else if role != auth.RoleAdmin && role != auth.RoleReader {
+				role = auth.RoleReader
+			}
+
+			// Prevent demoting the last admin if this user is the only admin
+			if existing.Role == auth.RoleAdmin && role != auth.RoleAdmin {
+				usersList, _ := c.DB.ListUsers(r.Context())
+				adminCount := 0
+				for _, u := range usersList {
+					if u.Role == auth.RoleAdmin {
+						adminCount++
+					}
+				}
+				if adminCount <= 1 {
+					writeError(w, http.StatusBadRequest, "cannot demote the sole administrator")
+					return
+				}
+			}
+
+			canRead := existing.CanRead
+			canDownload := existing.CanDownload
+			canUpload := existing.CanUpload
+			canEdit := existing.CanEdit
+			canDelete := existing.CanDelete
+
+			if req.Permissions != nil {
+				if req.Permissions.CanRead { canRead = 1 } else { canRead = 0 }
+				if req.Permissions.CanDownload { canDownload = 1 } else { canDownload = 0 }
+				if req.Permissions.CanUpload { canUpload = 1 } else { canUpload = 0 }
+				if req.Permissions.CanEdit { canEdit = 1 } else { canEdit = 0 }
+				if req.Permissions.CanDelete { canDelete = 1 } else { canDelete = 0 }
+			}
+
+			updated, err := c.DB.UpdateUser(r.Context(), database.UpdateUserParams{
+				ID:          targetID,
+				DisplayName: displayName,
+				Role:        role,
+				CanRead:     canRead,
+				CanDownload: canDownload,
+				CanUpload:   canUpload,
+				CanEdit:     canEdit,
+				CanDelete:   canDelete,
+			})
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to update user")
+				return
+			}
+
+			// If password was provided and not empty, update password
+			if strings.TrimSpace(req.Password) != "" {
+				if len(req.Password) < 6 {
+					writeError(w, http.StatusBadRequest, "password must be at least 6 characters")
+					return
+				}
+				newHash, err := auth.HashPassword(req.Password)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, "failed to hash password")
+					return
+				}
+				_, err = c.DB.UpdateUserPassword(r.Context(), database.UpdateUserPasswordParams{
+					ID:           targetID,
+					PasswordHash: newHash,
+				})
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, "failed to update password")
+					return
+				}
+			}
+
+			writeJSON(w, http.StatusOK, UserItem{
+				ID:          updated.ID,
+				Username:    updated.Username,
+				Role:        updated.Role,
+				DisplayName: updated.DisplayName,
+				Permissions: auth.Permissions{
+					CanRead:     updated.CanRead == 1,
+					CanDownload: updated.CanDownload == 1,
+					CanUpload:   updated.CanUpload == 1,
+					CanEdit:     updated.CanEdit == 1,
+					CanDelete:   updated.CanDelete == 1,
+				},
+				CreatedAt: formatTime(updated.CreatedAt),
 			})
 		})
 

@@ -34,6 +34,8 @@ func TestReadingProgressFlow(t *testing.T) {
 		PasswordHash: pwHash,
 		Role:         auth.RoleReader,
 		DisplayName:  "Test Reader",
+		CanRead:      1,
+		CanDownload:  1,
 	})
 	if err != nil {
 		t.Fatalf("failed to create user: %v", err)

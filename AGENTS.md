@@ -19,7 +19,7 @@ You are an expert systems engineer building "Lyostar", an ultra-lightweight, sin
   - Search: Use SQLite FTS5 virtual tables over titles, authors, and series.
 - EPUB Engine: Parse `META-INF/container.xml` and `.opf` manifests using standard library `archive/zip` and `encoding/xml`. NEVER extract the entire EPUB archive to disk.
 - PDF Engine: Parse `/Info` dictionary and Catalog `/Metadata` using pure Go (CGO-free). Extract first embedded JPEG cover stream. Serve with `Accept-Ranges: bytes` for fast in-browser streaming.
-- Authentication & Sessions: Pure Go `bcrypt` password hashing. Zero-dependency session management stored in SQLite `sessions` table via secure 64-char CSPRNG hex tokens. Transport via `HttpOnly`, `SameSite=Lax` cookies. Role-based Access Control (`admin`, `reader`).
+- Authentication & Sessions: Pure Go `bcrypt` password hashing. Zero-dependency session management stored in SQLite `sessions` table via secure 64-char CSPRNG hex tokens. Transport via `HttpOnly`, `SameSite=Lax` cookies. Role-based Access Control (`admin`, `reader`) and granular user permissions matching Calibre-Web architecture (`can_read`, `can_download`, `can_upload`, `can_edit`, `can_delete`). Admin can configure capabilities for any user and self.
 - Reading Progress & Resume: Per-user reading progress stored in SQLite `reading_progress` table (composite key `user_id, book_id`). Tracks location (Foliate EPUB CFI or PDF page number), progress fraction (0.0-1.0), and finished status. Readers resume automatically from saved position.
 - Thumbnail Pipeline: Downscale cover images to WebP format (max width: 400px), store at `/data/cache/covers/{file_sha256}.webp`.
 - Frontend: Vue 3 (Composition API, `<script setup>`), Vite, Tailwind CSS, Lucide Icons (`lucide-vue-next`).
@@ -33,3 +33,4 @@ You are an expert systems engineer building "Lyostar", an ultra-lightweight, sin
 
 ## 5. Specification Maintenance Directive
 - Self-Updating Mandate: Whenever an architectural decision, supported format, major dependency, or feature is added, altered, or deprecated upon user instruction, the engineer/agent MUST proactively update this `AGENTS.md` file to keep the Directives, Technology Stack Constraints, and Scope Control sections fully synchronized with the actual codebase.
+- Feature Tracking Mandate: The project feature matrix and implementation roadmap is tracked in `docs/features.md`. Whenever a feature is implemented, modified, or completed, the engineer/agent MUST proactively update `docs/features.md` to check off completed items (`[x]`) and record any newly introduced capabilities.

@@ -22,12 +22,22 @@ type contextKey string
 
 const userContextKey contextKey = "lyostar_user"
 
+// Permissions represents granular capabilities assigned to a user.
+type Permissions struct {
+	CanRead     bool `json:"can_read"`
+	CanDownload bool `json:"can_download"`
+	CanUpload   bool `json:"can_upload"`
+	CanEdit     bool `json:"can_edit"`
+	CanDelete   bool `json:"can_delete"`
+}
+
 // CurrentUser represents authenticated user info in context.
 type CurrentUser struct {
-	ID          int64  `json:"id"`
-	Username    string `json:"username"`
-	Role        string `json:"role"`
-	DisplayName string `json:"display_name"`
+	ID          int64       `json:"id"`
+	Username    string      `json:"username"`
+	Role        string      `json:"role"`
+	DisplayName string      `json:"display_name"`
+	Permissions Permissions `json:"permissions"`
 }
 
 // HashPassword hashes a plain text password with bcrypt.

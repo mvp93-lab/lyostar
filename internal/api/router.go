@@ -50,6 +50,7 @@ type BookListItem struct {
 	HasCover    bool     `json:"has_cover"`
 	CoverURL    string   `json:"cover_url,omitempty"`
 	FileURL     string   `json:"file_url"`
+	DownloadURL string   `json:"download_url"`
 	Progress    float64  `json:"progress"`
 	IsFinished  bool     `json:"is_finished"`
 	CreatedAt   string   `json:"created_at"`
@@ -72,6 +73,7 @@ type BookDetailResponse struct {
 	HasCover    bool              `json:"has_cover"`
 	CoverURL    string            `json:"cover_url,omitempty"`
 	FileURL     string            `json:"file_url"`
+	DownloadURL string            `json:"download_url"`
 	Progress    float64           `json:"progress"`
 	IsFinished  bool              `json:"is_finished"`
 	CreatedAt   string            `json:"created_at"`
@@ -253,6 +255,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						HasCover:    hasCover,
 						CoverURL:    coverURL,
 						FileURL:     fmt.Sprintf("/api/books/%d/file", b.ID),
+						DownloadURL: fmt.Sprintf("/api/books/%d/download", b.ID),
 						Progress:    userProgress,
 						IsFinished:  isFinished,
 						CreatedAt:   formatTime(b.CreatedAt),
@@ -284,8 +287,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					http.ServeFile(w, r, b.CoverPath)
 				})
 
-				// GET /api/books/{id}/file
-				book.Get("/file", func(w http.ResponseWriter, r *http.Request) {
+				// GET /api/books/{id}/file (Read in browser, requires can_read)
+				book.With(RequireRead).Get("/file", func(w http.ResponseWriter, r *http.Request) {
 					id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 					if err != nil {
 						writeError(w, http.StatusBadRequest, "invalid book id")
@@ -311,6 +314,36 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						w.Header().Set("Content-Type", "application/epub+zip")
 					}
 					w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
+					http.ServeFile(w, r, b.FilePath)
+				})
+
+				// GET /api/books/{id}/download (Direct file download, requires can_download)
+				book.With(RequireDownload).Get("/download", func(w http.ResponseWriter, r *http.Request) {
+					id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+					if err != nil {
+						writeError(w, http.StatusBadRequest, "invalid book id")
+						return
+					}
+
+					b, err := cfg.DB.GetBookByID(r.Context(), id)
+					if err != nil {
+						writeError(w, http.StatusNotFound, "book not found")
+						return
+					}
+
+					if _, err := os.Stat(b.FilePath); err != nil {
+						writeError(w, http.StatusNotFound, "book file not found")
+						return
+					}
+
+					filename := filepath.Base(b.FilePath)
+					switch strings.ToLower(b.Format) {
+					case "pdf":
+						w.Header().Set("Content-Type", "application/pdf")
+					default:
+						w.Header().Set("Content-Type", "application/epub+zip")
+					}
+					w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 					http.ServeFile(w, r, b.FilePath)
 				})
 			})
@@ -502,6 +535,7 @@ func toBookListItem(
 		HasCover:    hasCover,
 		CoverURL:    coverURL,
 		FileURL:     fmt.Sprintf("/api/books/%d/file", id),
+		DownloadURL: fmt.Sprintf("/api/books/%d/download", id),
 		Progress:    progress,
 		IsFinished:  isFinished,
 		CreatedAt:   formatTime(createdAt),

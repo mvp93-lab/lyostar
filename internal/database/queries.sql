@@ -115,8 +115,11 @@ WHERE books_fts.fulltext MATCH ?;
 SELECT COUNT(*) FROM users;
 
 -- name: CreateUser :one
-INSERT INTO users (username, password_hash, role, display_name)
-VALUES (?, ?, ?, ?)
+INSERT INTO users (
+    username, password_hash, role, display_name,
+    can_read, can_download, can_upload, can_edit, can_delete
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: GetUserByUsername :one
@@ -128,9 +131,31 @@ SELECT * FROM users
 WHERE id = ? LIMIT 1;
 
 -- name: ListUsers :many
-SELECT id, username, role, display_name, created_at, updated_at
+SELECT id, username, role, display_name,
+       can_read, can_download, can_upload, can_edit, can_delete,
+       created_at, updated_at
 FROM users
 ORDER BY id ASC;
+
+-- name: UpdateUser :one
+UPDATE users
+SET display_name = ?,
+    role = ?,
+    can_read = ?,
+    can_download = ?,
+    can_upload = ?,
+    can_edit = ?,
+    can_delete = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING *;
+
+-- name: UpdateUserPassword :one
+UPDATE users
+SET password_hash = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING *;
 
 -- name: DeleteUser :exec
 DELETE FROM users
@@ -142,7 +167,8 @@ VALUES (?, ?, ?)
 RETURNING *;
 
 -- name: GetSessionWithUser :one
-SELECT s.token, s.user_id, s.expires_at, u.username, u.role, u.display_name
+SELECT s.token, s.user_id, s.expires_at, u.username, u.role, u.display_name,
+       u.can_read, u.can_download, u.can_upload, u.can_edit, u.can_delete
 FROM sessions s
 JOIN users u ON s.user_id = u.id
 WHERE s.token = ? AND s.expires_at > CURRENT_TIMESTAMP

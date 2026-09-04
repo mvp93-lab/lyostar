@@ -27,6 +27,17 @@ help:
 ## build: Build frontend and then compile Go binary with embedded assets
 build: build-frontend build-backend
 
+## build-frontend: Install npm packages and build static production assets
+build-frontend:
+	@echo "==> Building frontend..."
+	cd $(FRONTEND_DIR) && npm install && npm run build
+
+## build-backend: Compile Go single-binary with size optimizations (-s -w)
+build-backend:
+	@echo "==> Building Go binary: $(BINARY_NAME)..."
+	go build -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) $(CMD_PATH)
+	@ls -lh $(BINARY_NAME)
+
 ## run: Run the built single-binary (serves both BE & FE at http://localhost:8080)
 run:
 	@if [ ! -f $(BINARY_NAME) ]; then $(MAKE) build; fi
