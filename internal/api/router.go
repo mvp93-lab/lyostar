@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/lyostar/lyostar/internal/auth"
 	"github.com/lyostar/lyostar/internal/database"
 	"github.com/lyostar/lyostar/internal/scanner"
 )
@@ -49,6 +50,8 @@ type BookListItem struct {
 	HasCover    bool     `json:"has_cover"`
 	CoverURL    string   `json:"cover_url,omitempty"`
 	FileURL     string   `json:"file_url"`
+	Progress    float64  `json:"progress"`
+	IsFinished  bool     `json:"is_finished"`
 	CreatedAt   string   `json:"created_at"`
 	UpdatedAt   string   `json:"updated_at"`
 }
@@ -69,6 +72,8 @@ type BookDetailResponse struct {
 	HasCover    bool              `json:"has_cover"`
 	CoverURL    string            `json:"cover_url,omitempty"`
 	FileURL     string            `json:"file_url"`
+	Progress    float64           `json:"progress"`
+	IsFinished  bool              `json:"is_finished"`
 	CreatedAt   string            `json:"created_at"`
 	UpdatedAt   string            `json:"updated_at"`
 }
@@ -135,43 +140,53 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 			// Books endpoints
 			protected.Route("/books", func(books chi.Router) {
-			// GET /api/books
-			books.Get("/", func(w http.ResponseWriter, r *http.Request) {
-				page, limit := parsePagination(r)
-				offset := (page - 1) * limit
+				// Register reading progress routes (/continue-reading, /{id}/progress)
+				RegisterProgressRoutes(books, cfg.DB.Queries)
 
-				rows, err := cfg.DB.ListBooksWithAuthors(r.Context(), database.ListBooksWithAuthorsParams{
-					Limit:  int64(limit),
-					Offset: int64(offset),
+				// GET /api/books
+				books.Get("/", func(w http.ResponseWriter, r *http.Request) {
+					page, limit := parsePagination(r)
+					offset := (page - 1) * limit
+
+					userID := int64(0)
+					if u := auth.GetUser(r.Context()); u != nil {
+						userID = u.ID
+					}
+
+					rows, err := cfg.DB.ListBooksWithAuthorsAndProgress(r.Context(), database.ListBooksWithAuthorsAndProgressParams{
+						UserID: userID,
+						Limit:  int64(limit),
+						Offset: int64(offset),
+					})
+					if err != nil {
+						writeError(w, http.StatusInternalServerError, "failed to query books")
+						return
+					}
+
+					total, err := cfg.DB.CountBooks(r.Context())
+					if err != nil {
+						writeError(w, http.StatusInternalServerError, "failed to count books")
+						return
+					}
+
+					items := make([]BookListItem, 0, len(rows))
+					for _, row := range rows {
+						items = append(items, toBookListItem(
+							row.ID, row.Title, row.AuthorNames, row.Description,
+							row.Publisher, row.Language, row.PubDate, row.Series,
+							row.SeriesIndex, row.FileSize, row.Format, row.CoverPath,
+							row.CreatedAt, row.UpdatedAt,
+							row.UserProgress, row.UserIsFinished == 1,
+						))
+					}
+
+					writeJSON(w, http.StatusOK, PaginatedResponse[BookListItem]{
+						Items: items,
+						Page:  page,
+						Limit: limit,
+						Total: total,
+					})
 				})
-				if err != nil {
-					writeError(w, http.StatusInternalServerError, "failed to query books")
-					return
-				}
-
-				total, err := cfg.DB.CountBooks(r.Context())
-				if err != nil {
-					writeError(w, http.StatusInternalServerError, "failed to count books")
-					return
-				}
-
-				items := make([]BookListItem, 0, len(rows))
-				for _, row := range rows {
-					items = append(items, toBookListItem(
-						row.ID, row.Title, row.AuthorNames, row.Description,
-						row.Publisher, row.Language, row.PubDate, row.Series,
-						row.SeriesIndex, row.FileSize, row.Format, row.CoverPath,
-						row.CreatedAt, row.UpdatedAt,
-					))
-				}
-
-				writeJSON(w, http.StatusOK, PaginatedResponse[BookListItem]{
-					Items: items,
-					Page:  page,
-					Limit: limit,
-					Total: total,
-				})
-			})
 
 			// Specific book routes
 			books.Route("/{id}", func(book chi.Router) {
@@ -214,6 +229,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						coverURL = fmt.Sprintf("/api/books/%d/cover", b.ID)
 					}
 
+					var userProgress float64
+					var isFinished bool
+					if u := auth.GetUser(r.Context()); u != nil {
+						if prog, err := cfg.DB.GetProgress(r.Context(), database.GetProgressParams{UserID: u.ID, BookID: b.ID}); err == nil {
+							userProgress = prog.Progress
+							isFinished = prog.IsFinished == 1
+						}
+					}
+
 					writeJSON(w, http.StatusOK, BookDetailResponse{
 						ID:          b.ID,
 						Title:       b.Title,
@@ -229,6 +253,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						HasCover:    hasCover,
 						CoverURL:    coverURL,
 						FileURL:     fmt.Sprintf("/api/books/%d/file", b.ID),
+						Progress:    userProgress,
+						IsFinished:  isFinished,
 						CreatedAt:   formatTime(b.CreatedAt),
 						UpdatedAt:   formatTime(b.UpdatedAt),
 					})
@@ -317,7 +343,13 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			page, limit := parsePagination(r)
 			offset := (page - 1) * limit
 
-			rows, err := cfg.DB.SearchBooksFTSWithAuthors(r.Context(), database.SearchBooksFTSWithAuthorsParams{
+			userID := int64(0)
+			if u := auth.GetUser(r.Context()); u != nil {
+				userID = u.ID
+			}
+
+			rows, err := cfg.DB.SearchBooksFTSWithAuthorsAndProgress(r.Context(), database.SearchBooksFTSWithAuthorsAndProgressParams{
+				UserID:   userID,
 				Fulltext: ftsQuery,
 				Limit:    int64(limit),
 				Offset:   int64(offset),
@@ -340,6 +372,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					row.Publisher, row.Language, row.PubDate, row.Series,
 					row.SeriesIndex, row.FileSize, row.Format, row.CoverPath,
 					row.CreatedAt, row.UpdatedAt,
+					row.UserProgress, row.UserIsFinished == 1,
 				))
 			}
 
@@ -434,6 +467,7 @@ func toBookListItem(
 	id int64, title string, authorNames any, description, publisher, language, pubDate, series string,
 	seriesIndex float64, fileSize int64, format, coverPath string,
 	createdAt, updatedAt any,
+	progress float64, isFinished bool,
 ) BookListItem {
 	var authors []string
 	if namesStr, ok := authorNames.(string); ok && namesStr != "" {
@@ -468,6 +502,8 @@ func toBookListItem(
 		HasCover:    hasCover,
 		CoverURL:    coverURL,
 		FileURL:     fmt.Sprintf("/api/books/%d/file", id),
+		Progress:    progress,
+		IsFinished:  isFinished,
 		CreatedAt:   formatTime(createdAt),
 		UpdatedAt:   formatTime(updatedAt),
 	}

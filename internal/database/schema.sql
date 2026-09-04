@@ -110,3 +110,17 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 
+CREATE TABLE IF NOT EXISTS reading_progress (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+    location TEXT NOT NULL DEFAULT '',
+    progress REAL NOT NULL DEFAULT 0.0,
+    current_page INTEGER NOT NULL DEFAULT 0,
+    total_pages INTEGER NOT NULL DEFAULT 0,
+    is_finished INTEGER NOT NULL DEFAULT 0,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, book_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reading_progress_user ON reading_progress(user_id, updated_at DESC);
+

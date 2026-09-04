@@ -33,14 +33,36 @@
         <div class="w-8 h-1 rounded-full bg-glacier-400/30"></div>
       </div>
 
+      <!-- Format badge on top-left -->
+      <div class="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md border border-white/[0.1] text-[10px] font-bold uppercase tracking-wider text-slate-300">
+        {{ book.format || 'epub' }}
+      </div>
+
+      <!-- Reading Progress Bar on bottom of cover -->
+      <div v-if="book.progress > 0" class="absolute bottom-0 inset-x-0 bg-black/70 backdrop-blur-sm px-2 py-1.5 flex flex-col gap-1">
+        <div class="flex items-center justify-between text-[10px] font-medium leading-none">
+          <span :class="book.is_finished ? 'text-emerald-400' : 'text-glacier-400'">
+            {{ book.is_finished ? 'Finished' : `${Math.round(book.progress * 100)}%` }}
+          </span>
+          <span v-if="!book.is_finished" class="text-[9px] text-slate-400">reading</span>
+        </div>
+        <div class="w-full h-1 bg-white/20 rounded-full overflow-hidden">
+          <div 
+            class="h-full rounded-full transition-all duration-300"
+            :class="book.is_finished ? 'bg-emerald-400' : 'bg-glacier-400'"
+            :style="{ width: `${Math.min(100, Math.round(book.progress * 100))}%` }"
+          ></div>
+        </div>
+      </div>
+
       <!-- Quick Read Floating Overlay -->
       <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
         <button
           @click.stop="$emit('read', book)"
-          class="flex items-center gap-2 px-4 py-2 rounded-xl bg-glacier-500 hover:bg-glacier-400 text-slate-950 font-semibold text-xs shadow-lg shadow-glacier-500/20 transform scale-95 group-hover:scale-100 transition-all"
+          class="flex items-center gap-2 px-4 py-2 rounded-xl bg-glacier-500 hover:bg-glacier-400 text-slate-950 font-semibold text-xs shadow-lg shadow-glacier-500/20 transform scale-95 group-hover:scale-100 transition-all cursor-pointer"
         >
           <BookOpen class="w-3.5 h-3.5" />
-          Read Now
+          {{ book.progress > 0 && !book.is_finished ? 'Continue' : 'Read' }}
         </button>
       </div>
     </div>

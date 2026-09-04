@@ -21,3 +21,31 @@ export async function triggerScan() {
   if (!res.ok) throw new Error(`Failed to trigger scan`)
   return res.json()
 }
+
+export async function fetchBookProgress(bookId) {
+  const res = await fetch(`/api/books/${bookId}/progress`)
+  if (!res.ok) throw new Error(`Failed to fetch reading progress`)
+  return res.json()
+}
+
+export async function saveBookProgress(bookId, { location = '', progress = 0, currentPage = 0, totalPages = 0, isFinished = false } = {}) {
+  const res = await fetch(`/api/books/${bookId}/progress`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      location,
+      progress,
+      current_page: currentPage,
+      total_pages: totalPages,
+      is_finished: isFinished
+    })
+  })
+  if (!res.ok) throw new Error(`Failed to save reading progress`)
+  return res.json()
+}
+
+export async function fetchContinueReading(limit = 12) {
+  const res = await fetch(`/api/books/continue-reading?limit=${limit}`)
+  if (!res.ok) throw new Error(`Failed to fetch continue reading list`)
+  return res.json()
+}

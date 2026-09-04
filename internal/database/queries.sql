@@ -156,3 +156,70 @@ WHERE token = ?;
 DELETE FROM sessions
 WHERE expires_at <= CURRENT_TIMESTAMP;
 
+-- name: GetProgress :one
+SELECT * FROM reading_progress
+WHERE user_id = ? AND book_id = ? LIMIT 1;
+
+-- name: UpsertProgress :one
+INSERT INTO reading_progress (
+    user_id, book_id, location, progress, current_page, total_pages, is_finished, updated_at
+) VALUES (
+    ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
+)
+ON CONFLICT(user_id, book_id) DO UPDATE SET
+    location = excluded.location,
+    progress = excluded.progress,
+    current_page = excluded.current_page,
+    total_pages = excluded.total_pages,
+    is_finished = excluded.is_finished,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+
+-- name: ListRecentProgressByUserID :many
+SELECT
+    rp.user_id, rp.book_id, rp.location, rp.progress, rp.current_page, rp.total_pages, rp.is_finished, rp.updated_at,
+    b.title, b.file_path, b.file_size, b.format, b.cover_path,
+    coalesce(GROUP_CONCAT(a.name, ', '), '') as author_names
+FROM reading_progress rp
+JOIN books b ON rp.book_id = b.id
+LEFT JOIN book_authors ba ON b.id = ba.book_id
+LEFT JOIN authors a ON ba.author_id = a.id
+WHERE rp.user_id = ? AND rp.is_finished = 0 AND rp.progress > 0
+GROUP BY b.id
+ORDER BY rp.updated_at DESC
+LIMIT ?;
+
+-- name: ListBooksWithAuthorsAndProgress :many
+SELECT
+    b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
+    b.description, b.publisher, b.language, b.pub_date, b.series,
+    b.series_index, b.cover_path, b.created_at, b.updated_at,
+    coalesce(GROUP_CONCAT(a.name, ', '), '') as author_names,
+    coalesce(rp.progress, 0.0) as user_progress,
+    coalesce(rp.is_finished, 0) as user_is_finished
+FROM books b
+LEFT JOIN book_authors ba ON b.id = ba.book_id
+LEFT JOIN authors a ON ba.author_id = a.id
+LEFT JOIN reading_progress rp ON b.id = rp.book_id AND rp.user_id = ?
+GROUP BY b.id
+ORDER BY b.id DESC
+LIMIT ? OFFSET ?;
+
+-- name: SearchBooksFTSWithAuthorsAndProgress :many
+SELECT
+    b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
+    b.description, b.publisher, b.language, b.pub_date, b.series,
+    b.series_index, b.cover_path, b.created_at, b.updated_at,
+    coalesce(GROUP_CONCAT(a.name, ', '), '') as author_names,
+    coalesce(rp.progress, 0.0) as user_progress,
+    coalesce(rp.is_finished, 0) as user_is_finished
+FROM books b
+JOIN books_fts ON b.id = books_fts.rowid
+LEFT JOIN book_authors ba ON b.id = ba.book_id
+LEFT JOIN authors a ON ba.author_id = a.id
+LEFT JOIN reading_progress rp ON b.id = rp.book_id AND rp.user_id = ?
+WHERE books_fts.fulltext MATCH ?
+GROUP BY b.id
+ORDER BY books_fts.rank
+LIMIT ? OFFSET ?;
+

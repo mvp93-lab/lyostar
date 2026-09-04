@@ -20,6 +20,7 @@ You are an expert systems engineer building "Lyostar", an ultra-lightweight, sin
 - EPUB Engine: Parse `META-INF/container.xml` and `.opf` manifests using standard library `archive/zip` and `encoding/xml`. NEVER extract the entire EPUB archive to disk.
 - PDF Engine: Parse `/Info` dictionary and Catalog `/Metadata` using pure Go (CGO-free). Extract first embedded JPEG cover stream. Serve with `Accept-Ranges: bytes` for fast in-browser streaming.
 - Authentication & Sessions: Pure Go `bcrypt` password hashing. Zero-dependency session management stored in SQLite `sessions` table via secure 64-char CSPRNG hex tokens. Transport via `HttpOnly`, `SameSite=Lax` cookies. Role-based Access Control (`admin`, `reader`).
+- Reading Progress & Resume: Per-user reading progress stored in SQLite `reading_progress` table (composite key `user_id, book_id`). Tracks location (Foliate EPUB CFI or PDF page number), progress fraction (0.0-1.0), and finished status. Readers resume automatically from saved position.
 - Thumbnail Pipeline: Downscale cover images to WebP format (max width: 400px), store at `/data/cache/covers/{file_sha256}.webp`.
 - Frontend: Vue 3 (Composition API, `<script setup>`), Vite, Tailwind CSS, Lucide Icons (`lucide-vue-next`).
   - Design Language: Clean, dark-mode first (Deep slate `#090a0f`, subtle 1px borders, Glacier Blue `#38bdf8` accents). Responsive and legible on OLED screens and slow-refresh E-Ink browsers.
@@ -27,7 +28,7 @@ You are an expert systems engineer building "Lyostar", an ultra-lightweight, sin
   - SPA Routing: Backend HTTP router must fallback unmatched non-API routes to `index.html` to prevent 404s on browser reload.
 
 ## 4. Scope Control
-- Core Scope: Scanning local EPUB & PDF files, extracting metadata/covers, SQLite indexing, shelf web UI, in-browser EPUB/PDF readers, multi-user authentication & RBAC (Admin & Reader), first-run setup wizard.
+- Core Scope: Scanning local EPUB & PDF files, extracting metadata/covers, SQLite indexing, shelf web UI, in-browser EPUB/PDF readers, multi-user authentication & RBAC (Admin & Reader), first-run setup wizard, per-user reading progress tracking & resume, "Continue Reading" shelf section.
 - Out of MVP Scope: Do NOT implement OPDS feeds or Send-to-Kindle until explicitly instructed.
 
 ## 5. Specification Maintenance Directive
