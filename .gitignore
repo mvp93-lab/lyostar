@@ -1,0 +1,30 @@
+# Binaries
+lyostar
+lyostar.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binaries and coverage
+*.test
+*.out
+
+# Data & Books runtime
+/data/
+/books/
+*.db
+*.db-wal
+*.db-shm
+
+# Node dependencies
+node_modules/
+frontend/node_modules/
+.npm/
+
+# IDE and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
