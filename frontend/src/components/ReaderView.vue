@@ -35,47 +35,30 @@
         </div>
       </div>
 
-      <!-- Controls for PDF -->
+      <!-- Controls for PDF (Official Mozilla PDF.js Engine) -->
       <div v-if="book.format === 'pdf'" class="flex items-center gap-1.5 sm:gap-2">
-        <!-- PDF Page tracker / quick bookmark -->
-        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#11131b] border border-white/[0.08] text-xs">
-          <span class="text-slate-400">Page:</span>
-          <input
-            type="number"
-            min="1"
-            v-model.number="pdfCurrentPage"
-            @keydown.enter="savePdfPage"
-            class="w-12 bg-transparent text-white font-mono text-center outline-none border-b border-white/20 focus:border-glacier-400"
-            title="Type page number and click Save"
-          />
-          <button
-            @click="savePdfPage"
-            class="text-[10px] text-glacier-400 hover:text-glacier-300 ml-1 cursor-pointer font-medium px-1.5 py-0.5 rounded bg-glacier-500/10 hover:bg-glacier-500/20 transition-colors"
-            title="Jump to page & Save position"
-          >
-            {{ saveStatus || 'Save' }}
-          </button>
+        <!-- Live Page Tracker -->
+        <div class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#11131b] border border-white/[0.08] text-xs font-mono">
+          <span class="text-slate-400">Page</span>
+          <span class="text-white font-semibold">{{ pdfCurrentPage }}</span>
+          <span class="text-slate-500">/</span>
+          <span class="text-slate-400">{{ totalPdfPages || '...' }}</span>
+          <span class="text-glacier-400 ml-1">({{ progressPercent }}%)</span>
         </div>
 
         <!-- Mark as Finished button -->
         <button
           @click="toggleFinished"
-          class="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
-          :class="{ 'text-emerald-400 bg-emerald-500/10': isFinished }"
-          :title="isFinished ? 'Mark as Unfinished' : 'Mark as Finished'"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer border"
+          :class="isFinished 
+            ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' 
+            : 'text-slate-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border-white/[0.08]'"
+          :title="isFinished ? 'Click to mark as unfinished' : 'Mark as finished'"
         >
-          <CheckCircle2 class="w-4 h-4" />
+          <CheckCircle2 class="w-3.5 h-3.5" />
+          <span>{{ isFinished ? 'Completed' : 'Mark Finished' }}</span>
         </button>
 
-        <a
-          :href="book.file_url"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
-          title="Open in New Tab"
-        >
-          <ExternalLink class="w-4 h-4" />
-        </a>
         <a
           :href="book.file_url"
           download
@@ -84,6 +67,7 @@
         >
           <Download class="w-4 h-4" />
         </a>
+
         <button
           @click="toggleFullscreen"
           class="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
@@ -135,11 +119,11 @@
 
     <!-- Reader Viewport -->
     <main class="flex-1 relative w-full h-full overflow-hidden flex items-center justify-center">
-      <!-- Loading State (both EPUB and PDF wait for saved progress to load) -->
+      <!-- Loading State -->
       <div v-if="loading" class="flex flex-col items-center gap-3 text-slate-400">
         <Loader2 class="w-7 h-7 text-glacier-400 animate-spin" />
         <span class="text-xs font-medium tracking-wide">
-          {{ resumeNotice || 'Loading book...' }}
+          {{ resumeNotice || 'Loading book content...' }}
         </span>
       </div>
 
@@ -155,11 +139,12 @@
         </button>
       </div>
 
-      <!-- PDF Reader Viewport: Mounted strictly AFTER progress is loaded -->
+      <!-- PDF Reader Viewport: Official Mozilla PDF.js Viewer (Calibre-Web standard) -->
       <iframe
         v-else-if="book.format === 'pdf'"
-        :key="iframeKey"
-        :src="pdfSrc"
+        ref="pdfFrame"
+        :src="pdfViewerUrl"
+        @load="onPdfFrameLoaded"
         class="w-full h-full border-0 bg-[#090a0f]"
         title="PDF Reader"
       />
@@ -172,7 +157,7 @@
       ></div>
 
       <!-- Floating Prev / Next Click Zones (EPUB only) -->
-      <template v-if="!loading && book.format !== 'pdf'">
+      <template v-if="!loading && !error && book.format !== 'pdf'">
         <button 
           @click="prevPage" 
           class="absolute left-0 top-14 bottom-10 w-16 group flex items-center justify-start pl-3 z-10 cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
@@ -232,7 +217,7 @@
 
 <script setup>
 import { shallowRef, ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, Loader2, Download, ExternalLink, CheckCircle2 } from 'lucide-vue-next'
+import { ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, Loader2, Download, CheckCircle2 } from 'lucide-vue-next'
 import { fetchBookProgress, saveBookProgress } from '../api/client'
 
 const props = defineProps({
@@ -244,10 +229,14 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'progress-updated'])
 
+// Containers
 const readerContainer = ref(null)
+const pdfFrame = ref(null)
+
 // AGENTS.md rule: ALWAYS wrap reader instance strictly inside shallowRef() (never ref() or reactive())
 const readerInstance = shallowRef(null)
 
+// UI State
 const loading = ref(true)
 const error = ref(null)
 const progressPercent = ref(0)
@@ -258,17 +247,67 @@ const isFullscreen = ref(false)
 const fontSize = ref(100)
 const resumeNotice = ref('')
 
+// EPUB state
 const lastCfi = ref('')
+
+// PDF state
+const totalPdfPages = ref(0)
 const pdfCurrentPage = ref(1)
-const iframeKey = ref(0)
-const saveStatus = ref('')
+const initialPdfPage = ref(1)
 
 let saveTimeout = null
+let pollAppTimer = null
 
-const pdfSrc = computed(() => {
-  const page = pdfCurrentPage.value > 1 ? pdfCurrentPage.value : 1
-  return `${props.book.file_url}#page=${page}`
+const pdfViewerUrl = computed(() => {
+  const page = initialPdfPage.value > 1 ? initialPdfPage.value : 1
+  return `/pdfjs/viewer.html?file=${encodeURIComponent(props.book.file_url)}#page=${page}`
 })
+
+function onPdfFrameLoaded() {
+  try {
+    const iframeWin = pdfFrame.value?.contentWindow
+    if (!iframeWin) return
+
+    // Poll until Mozilla PDFViewerApplication has initialized
+    let attempts = 0
+    pollAppTimer = setInterval(() => {
+      attempts++
+      const app = iframeWin.PDFViewerApplication
+      if (app && app.eventBus) {
+        clearInterval(pollAppTimer)
+        pollAppTimer = null
+
+        // Initial setup when pages are ready
+        app.eventBus.on('pagesinit', () => {
+          if (initialPdfPage.value > 1) {
+            app.page = initialPdfPage.value
+          }
+          if (app.pagesCount) {
+            totalPdfPages.value = app.pagesCount
+          }
+        })
+
+        // Listen to live page changes during continuous vertical scrolling
+        app.eventBus.on('pagechanging', (evt) => {
+          const page = evt.pageNumber
+          const total = app.pagesCount || totalPdfPages.value || 1
+          pdfCurrentPage.value = page
+          totalPdfPages.value = total
+          const fraction = Math.min(1.0, page / total)
+          progressPercent.value = Math.round(fraction * 100)
+
+          // Debounced background auto-save to SQLite
+          queueSaveProgress(`page-${page}`, fraction, page)
+        })
+      } else if (attempts > 100) {
+        clearInterval(pollAppTimer)
+        pollAppTimer = null
+      }
+    }, 100)
+  } catch (err) {
+    console.warn('[Lyostar Reader] Could not bind to PDF frame:', err)
+  }
+}
 
 function prevPage() {
   if (readerInstance.value && typeof readerInstance.value.prev === 'function') {
@@ -302,46 +341,37 @@ function toggleFullscreen() {
 
 async function persistProgress({ location, progress, currentPage, isFinishedVal }) {
   try {
+    const curPage = currentPage ?? (props.book.format === 'pdf' ? pdfCurrentPage.value : 0)
+    const prog = progress ?? (progressPercent.value / 100)
+    const loc = location ?? (props.book.format === 'pdf' ? `page-${curPage}` : lastCfi.value)
+    const finished = isFinishedVal ?? isFinished.value
+
     await saveBookProgress(props.book.id, {
-      location: location ?? lastCfi.value,
-      progress: progress ?? (progressPercent.value / 100),
-      currentPage: currentPage ?? pdfCurrentPage.value,
-      isFinished: isFinishedVal ?? isFinished.value
+      location: loc,
+      progress: prog,
+      currentPage: curPage,
+      isFinished: finished
     })
     emit('progress-updated', {
       bookId: props.book.id,
-      progress: progress ?? (progressPercent.value / 100),
-      isFinished: isFinishedVal ?? isFinished.value
+      progress: prog,
+      isFinished: finished
     })
   } catch (err) {
     console.warn('[Lyostar Reader] Failed to save progress:', err)
   }
 }
 
-function queueSaveProgress(cfi, fraction) {
+function queueSaveProgress(loc, fraction, pageNum) {
   clearTimeout(saveTimeout)
   saveTimeout = setTimeout(() => {
     persistProgress({
-      location: cfi,
+      location: loc,
       progress: fraction,
-      isFinishedVal: fraction >= 0.999 ? true : isFinished.value
+      currentPage: pageNum,
+      isFinishedVal: fraction >= 0.99 ? true : isFinished.value
     })
   }, 1200)
-}
-
-async function savePdfPage() {
-  if (pdfCurrentPage.value < 1) pdfCurrentPage.value = 1
-  iframeKey.value++
-  saveStatus.value = 'Saved!'
-  setTimeout(() => {
-    saveStatus.value = ''
-  }, 1800)
-
-  await persistProgress({
-    location: `page-${pdfCurrentPage.value}`,
-    currentPage: pdfCurrentPage.value,
-    progress: isFinished.value ? 1.0 : (pdfCurrentPage.value > 1 ? 0.5 : 0.05)
-  })
 }
 
 async function toggleFinished() {
@@ -368,7 +398,6 @@ function handleKeyDown(e) {
 }
 
 function handleClose() {
-  // Flush pending save
   if (saveTimeout) {
     clearTimeout(saveTimeout)
     persistProgress({})
@@ -379,12 +408,13 @@ function handleClose() {
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyDown)
 
-  // 1. Fetch initial progress from server
+  // 1. Fetch saved reading progress first
   let savedProgress = null
   try {
     savedProgress = await fetchBookProgress(props.book.id)
     if (savedProgress) {
       if (savedProgress.current_page > 0) {
+        initialPdfPage.value = savedProgress.current_page
         pdfCurrentPage.value = savedProgress.current_page
       }
       if (savedProgress.progress > 0) {
@@ -401,10 +431,10 @@ onMounted(async () => {
     console.warn('[Lyostar Reader] Could not fetch saved progress:', err)
   }
 
-  // 2. Handle PDF: pdfCurrentPage is now populated with saved page, reveal iframe
+  // 2. Handle PDF: Mount Mozilla PDF.js viewer iframe
   if (props.book.format === 'pdf') {
-    if (pdfCurrentPage.value > 1) {
-      resumeNotice.value = `Opening page ${pdfCurrentPage.value}...`
+    if (initialPdfPage.value > 1) {
+      resumeNotice.value = `Resuming at page ${initialPdfPage.value}...`
     }
     loading.value = false
     return
@@ -431,7 +461,7 @@ onMounted(async () => {
       }
       if (e.detail?.cfi) {
         lastCfi.value = e.detail.cfi
-        queueSaveProgress(e.detail.cfi, e.detail.fraction ?? 0)
+        queueSaveProgress(e.detail.cfi, e.detail.fraction ?? 0, 0)
       }
       if (e.detail?.tocItem?.label) {
         currentSectionTitle.value = e.detail.tocItem.label
@@ -467,6 +497,11 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeyDown)
+
+  if (pollAppTimer) {
+    clearInterval(pollAppTimer)
+    pollAppTimer = null
+  }
 
   if (saveTimeout) {
     clearTimeout(saveTimeout)

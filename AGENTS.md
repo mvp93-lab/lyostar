@@ -24,7 +24,7 @@ You are an expert systems engineer building "Lyostar", an ultra-lightweight, sin
 - Thumbnail Pipeline: Downscale cover images to WebP format (max width: 400px), store at `/data/cache/covers/{file_sha256}.webp`.
 - Frontend: Vue 3 (Composition API, `<script setup>`), Vite, Tailwind CSS, Lucide Icons (`lucide-vue-next`).
   - Design Language: Clean, dark-mode first (Deep slate `#090a0f`, subtle 1px borders, Glacier Blue `#38bdf8` accents). Responsive and legible on OLED screens and slow-refresh E-Ink browsers.
-  - Web Reader: Integrate `foliate-js` for EPUB (ALWAYS wrap reader instance strictly inside `shallowRef()`, never `ref()` or `reactive()`. Clean up instances explicitly in `onBeforeUnmount`). Use hardware-accelerated sandboxed iframe for PDF reader.
+  - Web Reader: Integrate `foliate-js` for EPUB (ALWAYS wrap reader instance strictly inside `shallowRef()`, never `ref()` or `reactive()`. Clean up instances explicitly in `onBeforeUnmount`). Use Mozilla PDF.js official pre-built viewer (matching Calibre-Web architecture) with Hi-DPI vector rendering, pixel-perfect TextLayer (selectable/copyable text), continuous vertical scrolling, and automated background reading progress tracking & resume.
   - SPA Routing: Backend HTTP router must fallback unmatched non-API routes to `index.html` to prevent 404s on browser reload.
 
 ## 4. Scope Control
