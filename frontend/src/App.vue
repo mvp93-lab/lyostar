@@ -27,6 +27,7 @@
         @scan="handleScan"
         @reset="resetView"
         @open-users="showUsersModal = true"
+        @open-upload="showUploadModal = true"
       />
 
       <!-- Main Shelf Content -->
@@ -189,6 +190,13 @@
         v-if="showUsersModal"
         @close="showUsersModal = false"
       />
+
+      <!-- Upload Books Modal -->
+      <UploadModal
+        v-if="showUploadModal"
+        @close="showUploadModal = false"
+        @uploaded="onBooksUploaded"
+      />
     </template>
   </div>
 </template>
@@ -203,6 +211,7 @@ import ReaderView from './components/ReaderView.vue'
 import SetupView from './components/SetupView.vue'
 import LoginView from './components/LoginView.vue'
 import UsersModal from './components/UsersModal.vue'
+import UploadModal from './components/UploadModal.vue'
 import { fetchBooks, searchBooks, triggerScan, fetchContinueReading } from './api/client.js'
 import { useAuth } from './composables/useAuth'
 
@@ -222,6 +231,7 @@ const isSearching = computed(() => searchQuery.value.trim() !== '')
 const selectedBook = ref(null)
 const readingBook = ref(null)
 const showUsersModal = ref(false)
+const showUploadModal = ref(false)
 
 const hasMore = computed(() => books.value.length < totalBooks.value)
 
@@ -329,6 +339,10 @@ function onAuthSuccess() {
   loadData(1, false)
 }
 
+function onBooksUploaded() {
+  loadData(1, false)
+}
+
 watch(isAuthenticated, (newVal) => {
   if (newVal) {
     loadData(1, false)
@@ -339,6 +353,7 @@ watch(isAuthenticated, (newVal) => {
     selectedBook.value = null
     readingBook.value = null
     showUsersModal.value = false
+    showUploadModal.value = false
   }
 })
 

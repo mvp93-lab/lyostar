@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -22,10 +23,11 @@ import (
 
 // RouterConfig holds dependencies for the HTTP router.
 type RouterConfig struct {
-	DB       *database.DB
-	Scanner  *scanner.Scanner
-	StaticFS fs.FS
-	Version  string
+	DB         *database.DB
+	Scanner    *scanner.Scanner
+	UploadsDir string
+	StaticFS   fs.FS
+	Version    string
 }
 
 // HealthResponse represents the health check payload.
@@ -144,6 +146,105 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			protected.Route("/books", func(books chi.Router) {
 				// Register reading progress routes (/continue-reading, /{id}/progress)
 				RegisterProgressRoutes(books, cfg.DB.Queries)
+
+				// POST /api/books/upload (Upload ebook, requires can_upload)
+				books.With(RequireUpload).Post("/upload", func(w http.ResponseWriter, r *http.Request) {
+					if cfg.UploadsDir == "" {
+						writeError(w, http.StatusInternalServerError, "uploads directory not configured")
+						return
+					}
+
+					// Limit upload body to 100MB
+					r.Body = http.MaxBytesReader(w, r.Body, 100<<20)
+					if err := r.ParseMultipartForm(100 << 20); err != nil {
+						writeError(w, http.StatusBadRequest, "file too large or invalid multipart form (max 100MB)")
+						return
+					}
+
+					file, header, err := r.FormFile("file")
+					if err != nil {
+						writeError(w, http.StatusBadRequest, "missing 'file' in upload form")
+						return
+					}
+					defer file.Close()
+
+					ext := strings.ToLower(filepath.Ext(header.Filename))
+					if ext != ".epub" && ext != ".pdf" {
+						writeError(w, http.StatusBadRequest, "unsupported file format; only .epub and .pdf are supported")
+						return
+					}
+
+					origBase := filepath.Base(header.Filename)
+					if origBase == "." || origBase == "/" || origBase == "" {
+						origBase = "upload" + ext
+					}
+
+					destName := fmt.Sprintf("%d_%s", time.Now().UnixNano(), origBase)
+					destPath := filepath.Join(cfg.UploadsDir, destName)
+
+					out, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+					if err != nil {
+						writeError(w, http.StatusInternalServerError, "failed to save uploaded file")
+						return
+					}
+
+					_, copyErr := io.Copy(out, file)
+					closeErr := out.Close()
+					if copyErr != nil || closeErr != nil {
+						_ = os.Remove(destPath)
+						writeError(w, http.StatusInternalServerError, "failed to write uploaded file")
+						return
+					}
+
+					book, err := cfg.Scanner.IndexFile(r.Context(), destPath)
+					if err != nil {
+						_ = os.Remove(destPath)
+						if errors.Is(err, scanner.ErrBookAlreadyExists) {
+							writeError(w, http.StatusConflict, "this book already exists in the library")
+							return
+						}
+						writeError(w, http.StatusBadRequest, fmt.Sprintf("failed to parse book: %v", err))
+						return
+					}
+
+					authorRows, _ := cfg.DB.GetAuthorsForBook(r.Context(), book.ID)
+					authors := make([]AuthorRoleItem, 0, len(authorRows))
+					for _, ar := range authorRows {
+						authors = append(authors, AuthorRoleItem{
+							ID:   ar.ID,
+							Name: ar.Name,
+							Role: ar.Role,
+						})
+					}
+
+					hasCover := book.CoverPath != ""
+					var coverURL string
+					if hasCover {
+						coverURL = fmt.Sprintf("/api/books/%d/cover", book.ID)
+					}
+
+					writeJSON(w, http.StatusCreated, BookDetailResponse{
+						ID:          book.ID,
+						Title:       book.Title,
+						Authors:     authors,
+						Description: book.Description,
+						Publisher:   book.Publisher,
+						Language:    book.Language,
+						PubDate:     book.PubDate,
+						Series:      book.Series,
+						SeriesIndex: book.SeriesIndex,
+						FileSize:    book.FileSize,
+						Format:      book.Format,
+						HasCover:    hasCover,
+						CoverURL:    coverURL,
+						FileURL:     fmt.Sprintf("/api/books/%d/file", book.ID),
+						DownloadURL: fmt.Sprintf("/api/books/%d/download", book.ID),
+						Progress:    0,
+						IsFinished:  false,
+						CreatedAt:   formatTime(book.CreatedAt),
+						UpdatedAt:   formatTime(book.UpdatedAt),
+					})
+				})
 
 				// GET /api/books
 				books.Get("/", func(w http.ResponseWriter, r *http.Request) {

@@ -49,3 +49,19 @@ export async function fetchContinueReading(limit = 12) {
   if (!res.ok) throw new Error(`Failed to fetch continue reading list`)
   return res.json()
 }
+
+export async function uploadBook(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch('/api/books/upload', {
+    method: 'POST',
+    body: formData
+  })
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data.error || `Upload failed with status ${res.status}`)
+  }
+  return data
+}

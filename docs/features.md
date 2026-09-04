@@ -7,9 +7,10 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
 ## 📊 Tổng quan tiến độ
 
 - **Core MVP / Hạ tầng cốt lõi**: `100% Hoàn thành`
+- **Quét thư viện & Quản lý Metadata**: `80% Hoàn thành`
 - **Trình đọc sách (Web Readers)**: `75% Hoàn thành`
-- **Duyệt & Tổ chức thư viện**: `60% Hoàn thành`
-- **Quản lý người dùng & Bảo mật**: `90% Hoàn thành`
+- **Duyệt & Tổ chức thư viện**: `65% Hoàn thành`
+- **Quản lý người dùng & Bảo mật**: `95% Hoàn thành`
 - **Kết nối thiết bị ngoài (OPDS / E-Reader)**: `0% Hoàn thành`
 
 ---
@@ -89,9 +90,11 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
 - [ ] **Chỉnh sửa Metadata trên Web (Metadata Editor)**:
   - [ ] Cho phép Admin sửa tiêu đề, tác giả, mô tả, series, tags trực tiếp từ giao diện web.
   - [ ] Dữ liệu sửa được lưu trong SQLite (không ghi đè file sách gốc).
-- [ ] **Upload sách mới qua Web UI**:
-  - [ ] Cho phép tải file `.epub`, `.pdf`, `.cbz` lên trực tiếp từ trình duyệt.
-  - [ ] Lưu trữ sách tải lên vào thư mục upload được cấu hình.
+- [x] **Upload sách mới qua Web UI**:
+  - [x] Cho phép tải file `.epub`, `.pdf` lên trực tiếp từ trình duyệt qua kéo thả (Drag & Drop) hoặc duyệt file.
+  - [x] Lưu trữ an toàn trong thư mục `/data/uploads/` (đảm bảo thư mục `/books` luôn STRICTLY READ-ONLY).
+  - [x] Kiểm soát phân quyền `can_upload` (Calibre-Web style), ngăn chặn tải trùng lặp qua SHA-256 (409 Conflict).
+  - [x] Tức thì trích xuất metadata và tạo WebP thumbnail (`IndexFile`), tự động cập nhật kệ sách trên UI.
 - [ ] **Tự động tải Metadata & Ảnh bìa từ Internet**:
   - [ ] Tìm kiếm thông tin sách qua ISBN / Tiêu đề từ Google Books, Open Library, Douban.
 

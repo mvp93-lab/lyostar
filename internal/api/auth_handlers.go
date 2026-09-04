@@ -152,6 +152,21 @@ func RequireDownload(next http.Handler) http.Handler {
 	return RequirePermission(func(p auth.Permissions) bool { return p.CanDownload }, "download")(next)
 }
 
+// RequireUpload ensures user has can_upload capability.
+func RequireUpload(next http.Handler) http.Handler {
+	return RequirePermission(func(p auth.Permissions) bool { return p.CanUpload }, "upload")(next)
+}
+
+// RequireEdit ensures user has can_edit capability.
+func RequireEdit(next http.Handler) http.Handler {
+	return RequirePermission(func(p auth.Permissions) bool { return p.CanEdit }, "edit")(next)
+}
+
+// RequireDelete ensures user has can_delete capability.
+func RequireDelete(next http.Handler) http.Handler {
+	return RequirePermission(func(p auth.Permissions) bool { return p.CanDelete }, "delete")(next)
+}
+
 // RegisterAuthRoutes mounts auth-related routes.
 func (c *RouterConfig) RegisterAuthRoutes(r chi.Router) {
 	r.Route("/auth", func(authGroup chi.Router) {

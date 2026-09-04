@@ -33,6 +33,10 @@ func main() {
 	if err := os.MkdirAll(cacheCoversDir, 0755); err != nil {
 		log.Fatalf("[Lyostar] Failed to create cache/covers directory: %v", err)
 	}
+	uploadsDir := filepath.Join(cfg.DataDir, "uploads")
+	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+		log.Fatalf("[Lyostar] Failed to create uploads directory: %v", err)
+	}
 
 	// Initialize SQLite database
 	dbPath := filepath.Join(cfg.DataDir, "app.db")
@@ -44,7 +48,7 @@ func main() {
 	log.Printf("[Lyostar] Database initialized at %s (WAL mode, pure Go)", dbPath)
 
 	// Initialize background scanner
-	bookScanner := scanner.New(cfg.BooksDir, cacheCoversDir, db)
+	bookScanner := scanner.New(cfg.BooksDir, cacheCoversDir, db, uploadsDir)
 
 	// Obtain embedded frontend static assets
 	distFS, err := frontend.DistFS()
@@ -54,10 +58,11 @@ func main() {
 
 	// Create HTTP router
 	router := api.NewRouter(api.RouterConfig{
-		DB:       db,
-		Scanner:  bookScanner,
-		StaticFS: distFS,
-		Version:  "0.1.0-dev",
+		DB:         db,
+		Scanner:    bookScanner,
+		UploadsDir: uploadsDir,
+		StaticFS:   distFS,
+		Version:    "0.1.0-dev",
 	})
 
 	server := &http.Server{

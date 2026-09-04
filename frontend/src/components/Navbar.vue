@@ -42,6 +42,17 @@
 
       <!-- Actions & Profile -->
       <div class="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
+        <!-- Upload button (requires can_upload) -->
+        <button
+          v-if="canUpload"
+          @click="$emit('open-upload')"
+          class="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-medium bg-glacier-400/10 hover:bg-glacier-400/20 border border-glacier-400/30 hover:border-glacier-400/50 text-glacier-300 hover:text-white transition-all cursor-pointer shadow-sm shadow-glacier-500/10"
+          title="Upload Ebook (.epub, .pdf)"
+        >
+          <Upload class="w-3.5 h-3.5 text-glacier-400" />
+          <span class="hidden md:inline">Upload</span>
+        </button>
+
         <!-- Admin-only: Users management -->
         <button
           v-if="isAdmin"
@@ -97,7 +108,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { BookOpen, Search, X, RefreshCw, Users, LogOut } from 'lucide-vue-next'
+import { BookOpen, Search, X, RefreshCw, Users, LogOut, Upload } from 'lucide-vue-next'
 import { useAuth } from '../composables/useAuth'
 
 const props = defineProps({
@@ -107,9 +118,9 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['search', 'scan', 'reset', 'open-users'])
+const emit = defineEmits(['search', 'scan', 'reset', 'open-users', 'open-upload'])
 
-const { user, isAdmin, logout } = useAuth()
+const { user, isAdmin, canUpload, logout } = useAuth()
 const searchQuery = ref('')
 let debounceTimer = null
 
