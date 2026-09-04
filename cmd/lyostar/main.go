@@ -55,6 +55,7 @@ func main() {
 	// Create HTTP router
 	router := api.NewRouter(api.RouterConfig{
 		DB:       db,
+		Scanner:  bookScanner,
 		StaticFS: distFS,
 		Version:  "0.1.0-dev",
 	})

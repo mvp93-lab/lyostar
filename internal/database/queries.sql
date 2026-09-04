@@ -69,6 +69,19 @@ JOIN book_authors ba ON a.id = ba.author_id
 WHERE ba.book_id = ?
 ORDER BY a.name ASC;
 
+-- name: ListBooksWithAuthors :many
+SELECT
+    b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
+    b.description, b.publisher, b.language, b.pub_date, b.series,
+    b.series_index, b.cover_path, b.created_at, b.updated_at,
+    coalesce(GROUP_CONCAT(a.name, ', '), '') as author_names
+FROM books b
+LEFT JOIN book_authors ba ON b.id = ba.book_id
+LEFT JOIN authors a ON ba.author_id = a.id
+GROUP BY b.id
+ORDER BY b.id DESC
+LIMIT ? OFFSET ?;
+
 -- name: SearchBooksFTS :many
 SELECT b.*
 FROM books b
@@ -76,3 +89,24 @@ JOIN books_fts ON b.id = books_fts.rowid
 WHERE books_fts.fulltext MATCH ?
 ORDER BY books_fts.rank
 LIMIT ? OFFSET ?;
+
+-- name: SearchBooksFTSWithAuthors :many
+SELECT
+    b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
+    b.description, b.publisher, b.language, b.pub_date, b.series,
+    b.series_index, b.cover_path, b.created_at, b.updated_at,
+    coalesce(GROUP_CONCAT(a.name, ', '), '') as author_names
+FROM books b
+JOIN books_fts ON b.id = books_fts.rowid
+LEFT JOIN book_authors ba ON b.id = ba.book_id
+LEFT JOIN authors a ON ba.author_id = a.id
+WHERE books_fts.fulltext MATCH ?
+GROUP BY b.id
+ORDER BY books_fts.rank
+LIMIT ? OFFSET ?;
+
+-- name: CountSearchBooksFTS :one
+SELECT COUNT(*)
+FROM books b
+JOIN books_fts ON b.id = books_fts.rowid
+WHERE books_fts.fulltext MATCH ?;

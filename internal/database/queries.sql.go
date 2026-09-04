@@ -48,6 +48,20 @@ func (q *Queries) CountBooks(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countSearchBooksFTS = `-- name: CountSearchBooksFTS :one
+SELECT COUNT(*)
+FROM books b
+JOIN books_fts ON b.id = books_fts.rowid
+WHERE books_fts.fulltext MATCH ?
+`
+
+func (q *Queries) CountSearchBooksFTS(ctx context.Context, fulltext string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSearchBooksFTS, fulltext)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAuthor = `-- name: CreateAuthor :one
 INSERT INTO authors (name)
 VALUES (?)
@@ -371,6 +385,84 @@ func (q *Queries) ListBooks(ctx context.Context, arg ListBooksParams) ([]Book, e
 	return items, nil
 }
 
+const listBooksWithAuthors = `-- name: ListBooksWithAuthors :many
+SELECT
+    b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
+    b.description, b.publisher, b.language, b.pub_date, b.series,
+    b.series_index, b.cover_path, b.created_at, b.updated_at,
+    coalesce(GROUP_CONCAT(a.name, ', '), '') as author_names
+FROM books b
+LEFT JOIN book_authors ba ON b.id = ba.book_id
+LEFT JOIN authors a ON ba.author_id = a.id
+GROUP BY b.id
+ORDER BY b.id DESC
+LIMIT ? OFFSET ?
+`
+
+type ListBooksWithAuthorsParams struct {
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
+}
+
+type ListBooksWithAuthorsRow struct {
+	ID          int64       `json:"id"`
+	Title       string      `json:"title"`
+	FilePath    string      `json:"file_path"`
+	FileSha256  string      `json:"file_sha256"`
+	FileSize    int64       `json:"file_size"`
+	Format      string      `json:"format"`
+	Description string      `json:"description"`
+	Publisher   string      `json:"publisher"`
+	Language    string      `json:"language"`
+	PubDate     string      `json:"pub_date"`
+	Series      string      `json:"series"`
+	SeriesIndex float64     `json:"series_index"`
+	CoverPath   string      `json:"cover_path"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+	AuthorNames interface{} `json:"author_names"`
+}
+
+func (q *Queries) ListBooksWithAuthors(ctx context.Context, arg ListBooksWithAuthorsParams) ([]ListBooksWithAuthorsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBooksWithAuthors, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListBooksWithAuthorsRow
+	for rows.Next() {
+		var i ListBooksWithAuthorsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.FilePath,
+			&i.FileSha256,
+			&i.FileSize,
+			&i.Format,
+			&i.Description,
+			&i.Publisher,
+			&i.Language,
+			&i.PubDate,
+			&i.Series,
+			&i.SeriesIndex,
+			&i.CoverPath,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AuthorNames,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchBooksFTS = `-- name: SearchBooksFTS :many
 SELECT b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format, b.description, b.publisher, b.language, b.pub_date, b.series, b.series_index, b.cover_path, b.created_at, b.updated_at
 FROM books b
@@ -411,6 +503,87 @@ func (q *Queries) SearchBooksFTS(ctx context.Context, arg SearchBooksFTSParams) 
 			&i.CoverPath,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchBooksFTSWithAuthors = `-- name: SearchBooksFTSWithAuthors :many
+SELECT
+    b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
+    b.description, b.publisher, b.language, b.pub_date, b.series,
+    b.series_index, b.cover_path, b.created_at, b.updated_at,
+    coalesce(GROUP_CONCAT(a.name, ', '), '') as author_names
+FROM books b
+JOIN books_fts ON b.id = books_fts.rowid
+LEFT JOIN book_authors ba ON b.id = ba.book_id
+LEFT JOIN authors a ON ba.author_id = a.id
+WHERE books_fts.fulltext MATCH ?
+GROUP BY b.id
+ORDER BY books_fts.rank
+LIMIT ? OFFSET ?
+`
+
+type SearchBooksFTSWithAuthorsParams struct {
+	Fulltext string `json:"fulltext"`
+	Limit    int64  `json:"limit"`
+	Offset   int64  `json:"offset"`
+}
+
+type SearchBooksFTSWithAuthorsRow struct {
+	ID          int64       `json:"id"`
+	Title       string      `json:"title"`
+	FilePath    string      `json:"file_path"`
+	FileSha256  string      `json:"file_sha256"`
+	FileSize    int64       `json:"file_size"`
+	Format      string      `json:"format"`
+	Description string      `json:"description"`
+	Publisher   string      `json:"publisher"`
+	Language    string      `json:"language"`
+	PubDate     string      `json:"pub_date"`
+	Series      string      `json:"series"`
+	SeriesIndex float64     `json:"series_index"`
+	CoverPath   string      `json:"cover_path"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+	AuthorNames interface{} `json:"author_names"`
+}
+
+func (q *Queries) SearchBooksFTSWithAuthors(ctx context.Context, arg SearchBooksFTSWithAuthorsParams) ([]SearchBooksFTSWithAuthorsRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchBooksFTSWithAuthors, arg.Fulltext, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchBooksFTSWithAuthorsRow
+	for rows.Next() {
+		var i SearchBooksFTSWithAuthorsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.FilePath,
+			&i.FileSha256,
+			&i.FileSize,
+			&i.Format,
+			&i.Description,
+			&i.Publisher,
+			&i.Language,
+			&i.PubDate,
+			&i.Series,
+			&i.SeriesIndex,
+			&i.CoverPath,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AuthorNames,
 		); err != nil {
 			return nil, err
 		}
