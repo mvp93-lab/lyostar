@@ -18,12 +18,17 @@ You are an expert systems engineer building "Lyostar", an ultra-lightweight, sin
   - Query layer: Use `sqlc` only. Do NOT use ORMs (e.g., GORM, Ent).
   - Search: Use SQLite FTS5 virtual tables over titles, authors, and series.
 - EPUB Engine: Parse `META-INF/container.xml` and `.opf` manifests using standard library `archive/zip` and `encoding/xml`. NEVER extract the entire EPUB archive to disk.
+- PDF Engine: Parse `/Info` dictionary and Catalog `/Metadata` using pure Go (CGO-free). Extract first embedded JPEG cover stream. Serve with `Accept-Ranges: bytes` for fast in-browser streaming.
+- Authentication & Sessions: Pure Go `bcrypt` password hashing. Zero-dependency session management stored in SQLite `sessions` table via secure 64-char CSPRNG hex tokens. Transport via `HttpOnly`, `SameSite=Lax` cookies. Role-based Access Control (`admin`, `reader`).
 - Thumbnail Pipeline: Downscale cover images to WebP format (max width: 400px), store at `/data/cache/covers/{file_sha256}.webp`.
 - Frontend: Vue 3 (Composition API, `<script setup>`), Vite, Tailwind CSS, Lucide Icons (`lucide-vue-next`).
   - Design Language: Clean, dark-mode first (Deep slate `#090a0f`, subtle 1px borders, Glacier Blue `#38bdf8` accents). Responsive and legible on OLED screens and slow-refresh E-Ink browsers.
-  - Web Reader: Integrate `foliate-js`. ALWAYS wrap reader instance strictly inside `shallowRef()` (never `ref()` or `reactive()`). Clean up instances explicitly in `onBeforeUnmount`.
+  - Web Reader: Integrate `foliate-js` for EPUB (ALWAYS wrap reader instance strictly inside `shallowRef()`, never `ref()` or `reactive()`. Clean up instances explicitly in `onBeforeUnmount`). Use hardware-accelerated sandboxed iframe for PDF reader.
   - SPA Routing: Backend HTTP router must fallback unmatched non-API routes to `index.html` to prevent 404s on browser reload.
 
 ## 4. Scope Control
-- MVP Scope: Scanning local EPUB files, extracting Dublin Core metadata/covers, SQLite indexing, shelf web UI, in-browser reader.
-- Out of MVP Scope: Do NOT implement OPDS feeds, Send-to-Kindle, or multi-user authentication until explicitly instructed.
+- Core Scope: Scanning local EPUB & PDF files, extracting metadata/covers, SQLite indexing, shelf web UI, in-browser EPUB/PDF readers, multi-user authentication & RBAC (Admin & Reader), first-run setup wizard.
+- Out of MVP Scope: Do NOT implement OPDS feeds or Send-to-Kindle until explicitly instructed.
+
+## 5. Specification Maintenance Directive
+- Self-Updating Mandate: Whenever an architectural decision, supported format, major dependency, or feature is added, altered, or deprecated upon user instruction, the engineer/agent MUST proactively update this `AGENTS.md` file to keep the Directives, Technology Stack Constraints, and Scope Control sections fully synchronized with the actual codebase.
