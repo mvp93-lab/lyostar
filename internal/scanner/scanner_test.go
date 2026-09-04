@@ -109,8 +109,29 @@ func TestScanner(t *testing.T) {
 		t.Fatalf("failed to write book3: %v", err)
 	}
 
-	// Non-epub and hidden files (should be ignored)
-	_ = os.WriteFile(filepath.Join(booksDir, "readme.txt"), []byte("not an epub"), 0644)
+	// Create test PDF file in booksDir
+	pdfContent := []byte(`%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>
+endobj
+4 0 obj
+<< /Title (PDF Handbook) /Author (Grace Hopper) >>
+endobj
+trailer
+<< /Root 1 0 R /Info 4 0 R >>
+%%EOF`)
+	if err := os.WriteFile(filepath.Join(booksDir, "handbook.pdf"), pdfContent, 0644); err != nil {
+		t.Fatalf("failed to write handbook.pdf: %v", err)
+	}
+
+	// Non-epub/pdf and hidden files (should be ignored)
+	_ = os.WriteFile(filepath.Join(booksDir, "readme.txt"), []byte("not a book"), 0644)
 	_ = os.WriteFile(filepath.Join(booksDir, ".hidden.epub"), epub1, 0644)
 
 	// Snapshot directory state before scan to verify read-only property
@@ -136,11 +157,11 @@ func TestScanner(t *testing.T) {
 		t.Fatalf("scan failed: %v", err)
 	}
 
-	if stats.TotalFiles != 3 {
-		t.Errorf("expected 3 total files, got %d", stats.TotalFiles)
+	if stats.TotalFiles != 4 {
+		t.Errorf("expected 4 total files, got %d", stats.TotalFiles)
 	}
-	if stats.Added != 3 {
-		t.Errorf("expected 3 added books, got %d", stats.Added)
+	if stats.Added != 4 {
+		t.Errorf("expected 4 added books, got %d", stats.Added)
 	}
 	if stats.Skipped != 0 {
 		t.Errorf("expected 0 skipped books, got %d", stats.Skipped)
@@ -154,16 +175,31 @@ func TestScanner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to query books: %v", err)
 	}
-	if len(books) != 3 {
-		t.Fatalf("expected 3 books in DB, got %d", len(books))
+	if len(books) != 4 {
+		t.Fatalf("expected 4 books in DB, got %d", len(books))
+	}
+
+	foundPDF := false
+	for _, b := range books {
+		if b.Format == "pdf" {
+			foundPDF = true
+			if b.Title != "PDF Handbook" {
+				t.Errorf("expected PDF title 'PDF Handbook', got '%s'", b.Title)
+			}
+		}
+	}
+	if !foundPDF {
+		t.Errorf("expected to find indexed PDF book in database")
 	}
 
 	for _, b := range books {
-		if b.CoverPath == "" {
-			t.Errorf("expected book %s to have a cover path", b.Title)
-		} else {
-			if _, err := os.Stat(b.CoverPath); err != nil {
-				t.Errorf("cover file %s does not exist on disk: %v", b.CoverPath, err)
+		if b.Format == "epub" {
+			if b.CoverPath == "" {
+				t.Errorf("expected book %s to have a cover path", b.Title)
+			} else {
+				if _, err := os.Stat(b.CoverPath); err != nil {
+					t.Errorf("cover file %s does not exist on disk: %v", b.CoverPath, err)
+				}
 			}
 		}
 
@@ -178,14 +214,14 @@ func TestScanner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second scan failed: %v", err)
 	}
-	if stats2.TotalFiles != 3 {
-		t.Errorf("second scan: expected 3 total files, got %d", stats2.TotalFiles)
+	if stats2.TotalFiles != 4 {
+		t.Errorf("second scan: expected 4 total files, got %d", stats2.TotalFiles)
 	}
 	if stats2.Added != 0 {
 		t.Errorf("second scan: expected 0 added, got %d", stats2.Added)
 	}
-	if stats2.Skipped != 3 {
-		t.Errorf("second scan: expected 3 skipped, got %d", stats2.Skipped)
+	if stats2.Skipped != 4 {
+		t.Errorf("second scan: expected 4 skipped, got %d", stats2.Skipped)
 	}
 	if stats2.Errors != 0 {
 		t.Errorf("second scan: expected 0 errors, got %d", stats2.Errors)

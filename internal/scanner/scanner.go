@@ -19,6 +19,7 @@ import (
 
 	"github.com/lyostar/lyostar/internal/database"
 	"github.com/lyostar/lyostar/internal/epub"
+	"github.com/lyostar/lyostar/internal/pdf"
 )
 
 // Stats tracks statistics of a scan run.
@@ -133,8 +134,9 @@ func (s *Scanner) Scan(ctx context.Context) (*Stats, error) {
 			return nil
 		}
 
-		// Only process .epub files (case-insensitive)
-		if strings.EqualFold(filepath.Ext(name), ".epub") {
+		// Process .epub and .pdf files (case-insensitive)
+		ext := strings.ToLower(filepath.Ext(name))
+		if ext == ".epub" || ext == ".pdf" {
 			atomic.AddInt64(&stats.TotalFiles, 1)
 			taskChan <- path
 		}
@@ -190,36 +192,108 @@ func (s *Scanner) processFile(ctx context.Context, filePath string, stats *Stats
 		return
 	}
 
-	// Reset file pointer to beginning for EPUB parsing
+	// Reset file pointer to beginning
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		log.Printf("[Scanner] Failed to rewind file %s: %v", filePath, err)
 		atomic.AddInt64(&stats.Errors, 1)
 		return
 	}
 
-	// Parse EPUB directly in-memory from archive/zip
-	bookInfo, err := epub.Parse(file, fileSize)
-	if err != nil {
-		log.Printf("[Scanner] Failed to parse EPUB %s: %v", filePath, err)
+	ext := strings.ToLower(filepath.Ext(filePath))
+	var format string
+	var meta struct {
+		Title       string
+		Authors     []string
+		Description string
+		Publisher   string
+		Language    string
+		PubDate     string
+		Series      string
+		SeriesIndex float64
+	}
+	var coverData []byte
+
+	switch ext {
+	case ".epub":
+		format = "epub"
+		bookInfo, err := epub.Parse(file, fileSize)
+		if err != nil {
+			log.Printf("[Scanner] Failed to parse EPUB %s: %v", filePath, err)
+			atomic.AddInt64(&stats.Errors, 1)
+			return
+		}
+		meta = struct {
+			Title       string
+			Authors     []string
+			Description string
+			Publisher   string
+			Language    string
+			PubDate     string
+			Series      string
+			SeriesIndex float64
+		}{
+			Title:       bookInfo.Metadata.Title,
+			Authors:     bookInfo.Metadata.Authors,
+			Description: bookInfo.Metadata.Description,
+			Publisher:   bookInfo.Metadata.Publisher,
+			Language:    bookInfo.Metadata.Language,
+			PubDate:     bookInfo.Metadata.PubDate,
+			Series:      bookInfo.Metadata.Series,
+			SeriesIndex: bookInfo.Metadata.SeriesIndex,
+		}
+		coverData = bookInfo.CoverData
+
+	case ".pdf":
+		format = "pdf"
+		bookInfo, err := pdf.Parse(file, fileSize)
+		if err != nil {
+			log.Printf("[Scanner] Failed to parse PDF %s: %v", filePath, err)
+			atomic.AddInt64(&stats.Errors, 1)
+			return
+		}
+		meta = struct {
+			Title       string
+			Authors     []string
+			Description string
+			Publisher   string
+			Language    string
+			PubDate     string
+			Series      string
+			SeriesIndex float64
+		}{
+			Title:       bookInfo.Metadata.Title,
+			Authors:     bookInfo.Metadata.Authors,
+			Description: bookInfo.Metadata.Description,
+			Publisher:   bookInfo.Metadata.Publisher,
+			Language:    bookInfo.Metadata.Language,
+			PubDate:     bookInfo.Metadata.PubDate,
+			Series:      bookInfo.Metadata.Series,
+			SeriesIndex: bookInfo.Metadata.SeriesIndex,
+		}
+		coverData = bookInfo.CoverData
+
+	default:
+		log.Printf("[Scanner] Unsupported format for file %s", filePath)
 		atomic.AddInt64(&stats.Errors, 1)
 		return
 	}
 
 	// Title fallback: if empty in metadata, use filename without extension
-	title := strings.TrimSpace(bookInfo.Metadata.Title)
+	title := strings.TrimSpace(meta.Title)
 	if title == "" {
 		title = strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+		title = strings.ReplaceAll(title, "_", " ")
 	}
 
 	// Handle cover image extraction and downscaling
 	var coverPath string
-	if len(bookInfo.CoverData) > 0 {
+	if len(coverData) > 0 {
 		coverFilename := fileSha256 + ".webp"
 		fullCoverPath := filepath.Join(s.coversDir, coverFilename)
 
 		// Check if cover already exists in cache
 		if _, err := os.Stat(fullCoverPath); os.IsNotExist(err) {
-			if err := epub.SaveCoverThumbnail(bookInfo.CoverData, fullCoverPath, epub.DefaultMaxCoverWidth); err != nil {
+			if err := epub.SaveCoverThumbnail(coverData, fullCoverPath, epub.DefaultMaxCoverWidth); err != nil {
 				log.Printf("[Scanner] Failed to save cover thumbnail for %s: %v", filePath, err)
 			} else {
 				coverPath = fullCoverPath
@@ -235,13 +309,13 @@ func (s *Scanner) processFile(ctx context.Context, filePath string, stats *Stats
 		FilePath:    filePath,
 		FileSha256:  fileSha256,
 		FileSize:    fileSize,
-		Format:      "epub",
-		Description: bookInfo.Metadata.Description,
-		Publisher:   bookInfo.Metadata.Publisher,
-		Language:    bookInfo.Metadata.Language,
-		PubDate:     bookInfo.Metadata.PubDate,
-		Series:      bookInfo.Metadata.Series,
-		SeriesIndex: bookInfo.Metadata.SeriesIndex,
+		Format:      format,
+		Description: meta.Description,
+		Publisher:   meta.Publisher,
+		Language:    meta.Language,
+		PubDate:     meta.PubDate,
+		Series:      meta.Series,
+		SeriesIndex: meta.SeriesIndex,
 		CoverPath:   coverPath,
 	})
 	if err != nil {
@@ -251,7 +325,7 @@ func (s *Scanner) processFile(ctx context.Context, filePath string, stats *Stats
 	}
 
 	// Link authors
-	authors := bookInfo.Metadata.Authors
+	authors := meta.Authors
 	if len(authors) == 0 {
 		authors = []string{"Unknown"}
 	}

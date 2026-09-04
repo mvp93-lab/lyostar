@@ -18,8 +18,9 @@
         class="w-full h-full flex flex-col justify-between p-4 bg-gradient-to-br from-slate-900 via-[#131722] to-slate-950 border border-white/[0.06]"
       >
         <div class="flex items-center gap-1.5 text-glacier-400/60 text-xs font-semibold uppercase tracking-wider">
-          <Book class="w-3.5 h-3.5" />
-          <span>EPUB</span>
+          <FileText v-if="book.format === 'pdf'" class="w-3.5 h-3.5" />
+          <Book v-else class="w-3.5 h-3.5" />
+          <span>{{ (book.format || 'epub').toUpperCase() }}</span>
         </div>
         <div>
           <h4 class="text-sm font-semibold text-white/90 line-clamp-3 leading-tight mb-2">
@@ -69,7 +70,7 @@
 </template>
 
 <script setup>
-import { Book, BookOpen } from 'lucide-vue-next'
+import { Book, BookOpen, FileText } from 'lucide-vue-next'
 
 const props = defineProps({
   book: {

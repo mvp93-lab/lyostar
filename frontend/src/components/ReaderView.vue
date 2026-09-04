@@ -1,6 +1,6 @@
 <template>
   <div class="fixed inset-0 z-50 bg-[#090a0f] text-slate-100 flex flex-col select-none overflow-hidden animate-fade-in">
-    <!-- Top Bar Controls (Floating or Fixed) -->
+    <!-- Top Bar Controls -->
     <header 
       v-show="showControls"
       class="h-14 bg-[#090a0f]/95 backdrop-blur border-b border-white/[0.08] px-4 flex items-center justify-between z-20 transition-all duration-200"
@@ -14,16 +14,51 @@
           <ArrowLeft class="w-5 h-5" />
         </button>
         <div class="min-w-0">
-          <h2 class="text-sm font-semibold text-white truncate max-w-xs sm:max-w-md">
-            {{ book.title }}
-          </h2>
-          <p v-if="currentSectionTitle" class="text-[11px] text-glacier-400 truncate">
+          <div class="flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-white truncate max-w-xs sm:max-w-md">
+              {{ book.title }}
+            </h2>
+            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-glacier-400/10 text-glacier-400 border border-glacier-400/20 flex-shrink-0">
+              {{ book.format || 'EPUB' }}
+            </span>
+          </div>
+          <p v-if="currentSectionTitle && book.format !== 'pdf'" class="text-[11px] text-glacier-400 truncate">
             {{ currentSectionTitle }}
           </p>
         </div>
       </div>
 
-      <div class="flex items-center gap-1.5 sm:gap-2">
+      <!-- Controls for PDF -->
+      <div v-if="book.format === 'pdf'" class="flex items-center gap-1.5 sm:gap-2">
+        <a
+          :href="book.file_url"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
+          title="Open in New Tab"
+        >
+          <ExternalLink class="w-4 h-4" />
+        </a>
+        <a
+          :href="book.file_url"
+          download
+          class="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
+          title="Download PDF"
+        >
+          <Download class="w-4 h-4" />
+        </a>
+        <button
+          @click="toggleFullscreen"
+          class="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
+          title="Toggle Fullscreen"
+        >
+          <Maximize2 v-if="!isFullscreen" class="w-4 h-4" />
+          <Minimize2 v-else class="w-4 h-4" />
+        </button>
+      </div>
+
+      <!-- Controls for EPUB -->
+      <div v-else class="flex items-center gap-1.5 sm:gap-2">
         <!-- Font Size Decrease -->
         <button
           @click="adjustFontSize(-10)"
@@ -54,15 +89,15 @@
 
     <!-- Reader Viewport -->
     <main class="flex-1 relative w-full h-full overflow-hidden flex items-center justify-center">
-      <!-- Loading State -->
-      <div v-if="loading" class="flex flex-col items-center gap-3 text-slate-400">
+      <!-- Loading State (EPUB only) -->
+      <div v-if="loading && book.format !== 'pdf'" class="flex flex-col items-center gap-3 text-slate-400">
         <Loader2 class="w-7 h-7 text-glacier-400 animate-spin" />
         <span class="text-xs font-medium tracking-wide">Loading book content...</span>
       </div>
 
       <!-- Error State -->
       <div v-if="error" class="p-6 max-w-md text-center bg-red-500/10 border border-red-500/20 rounded-2xl text-red-300 text-sm">
-        <p class="font-semibold mb-2">Unable to open EPUB</p>
+        <p class="font-semibold mb-2">Unable to open book</p>
         <p class="text-xs text-red-400/80 mb-4">{{ error }}</p>
         <button
           @click="$emit('close')"
@@ -72,38 +107,49 @@
         </button>
       </div>
 
-      <!-- foliater-view container mounted here -->
+      <!-- PDF Reader Viewport -->
+      <iframe
+        v-if="book.format === 'pdf'"
+        :src="book.file_url"
+        class="w-full h-full border-0 bg-[#090a0f]"
+        title="PDF Reader"
+      />
+
+      <!-- foliate-view container mounted here for EPUB -->
       <div 
+        v-else
         ref="readerContainer" 
         class="w-full h-full select-text"
         :class="{ 'opacity-0': loading || error, 'opacity-100': !loading && !error }"
       ></div>
 
-      <!-- Floating Prev / Next Click Zones -->
-      <button 
-        @click="prevPage" 
-        class="absolute left-0 top-14 bottom-10 w-16 group flex items-center justify-start pl-3 z-10 cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
-        aria-label="Previous page"
-      >
-        <div class="p-2 rounded-full bg-black/60 backdrop-blur border border-white/10 text-white shadow-lg group-hover:scale-110 transition-transform">
-          <ChevronLeft class="w-5 h-5" />
-        </div>
-      </button>
+      <!-- Floating Prev / Next Click Zones (EPUB only) -->
+      <template v-if="book.format !== 'pdf'">
+        <button 
+          @click="prevPage" 
+          class="absolute left-0 top-14 bottom-10 w-16 group flex items-center justify-start pl-3 z-10 cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
+          aria-label="Previous page"
+        >
+          <div class="p-2 rounded-full bg-black/60 backdrop-blur border border-white/10 text-white shadow-lg group-hover:scale-110 transition-transform">
+            <ChevronLeft class="w-5 h-5" />
+          </div>
+        </button>
 
-      <button 
-        @click="nextPage" 
-        class="absolute right-0 top-14 bottom-10 w-16 group flex items-center justify-end pr-3 z-10 cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
-        aria-label="Next page"
-      >
-        <div class="p-2 rounded-full bg-black/60 backdrop-blur border border-white/10 text-white shadow-lg group-hover:scale-110 transition-transform">
-          <ChevronRight class="w-5 h-5" />
-        </div>
-      </button>
+        <button 
+          @click="nextPage" 
+          class="absolute right-0 top-14 bottom-10 w-16 group flex items-center justify-end pr-3 z-10 cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
+          aria-label="Next page"
+        >
+          <div class="p-2 rounded-full bg-black/60 backdrop-blur border border-white/10 text-white shadow-lg group-hover:scale-110 transition-transform">
+            <ChevronRight class="w-5 h-5" />
+          </div>
+        </button>
+      </template>
     </main>
 
-    <!-- Bottom Progress Bar Controls -->
+    <!-- Bottom Progress Bar Controls (EPUB only) -->
     <footer 
-      v-show="showControls"
+      v-show="showControls && book.format !== 'pdf'"
       class="h-10 bg-[#090a0f]/95 backdrop-blur border-t border-white/[0.08] px-4 flex items-center justify-between text-xs text-slate-400 z-20"
     >
       <button 
@@ -137,7 +183,7 @@
 
 <script setup>
 import { shallowRef, ref, onMounted, onBeforeUnmount } from 'vue'
-import { ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, Loader2 } from 'lucide-vue-next'
+import { ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, Loader2, Download, ExternalLink } from 'lucide-vue-next'
 
 const props = defineProps({
   book: {
@@ -193,15 +239,23 @@ function toggleFullscreen() {
 function handleKeyDown(e) {
   if (e.key === 'Escape') {
     emit('close')
-  } else if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
-    nextPage()
-  } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-    prevPage()
+  } else if (props.book.format !== 'pdf') {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+      nextPage()
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      prevPage()
+    }
   }
 }
 
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyDown)
+
+  // For PDF, browser native viewer handles rendering via iframe
+  if (props.book.format === 'pdf') {
+    loading.value = false
+    return
+  }
 
   try {
     // Dynamically import foliate-js view component

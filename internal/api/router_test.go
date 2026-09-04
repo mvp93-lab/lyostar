@@ -206,6 +206,34 @@ func TestRouterBooksEndpoints(t *testing.T) {
 		}
 	}
 
+	// 4b. Test GET /api/books/{id}/file for PDF
+	{
+		fakePdfPath := filepath.Join(tempDir, "books", "test_book.pdf")
+		_ = os.WriteFile(fakePdfPath, []byte("%PDF-1.4\nfake-pdf-content"), 0644)
+
+		pdfBook, err := db.CreateBook(ctx, database.CreateBookParams{
+			Title:      "PDF Guide",
+			FilePath:   fakePdfPath,
+			FileSha256: "pdf1234567890",
+			FileSize:   512,
+			Format:     "pdf",
+		})
+		if err != nil {
+			t.Fatalf("failed to create pdf book: %v", err)
+		}
+
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/books/%d/file", pdfBook.ID), nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 for pdf file, got %d", rec.Code)
+		}
+		if ct := rec.Header().Get("Content-Type"); ct != "application/pdf" {
+			t.Errorf("expected Content-Type application/pdf, got %q", ct)
+		}
+	}
+
 	// 5. Test GET /api/search
 	{
 		req := httptest.NewRequest(http.MethodGet, "/api/search?q=Sign", nil)

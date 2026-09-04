@@ -49,7 +49,7 @@
           {{ isSearching ? 'No books found matching your search' : 'No books in library yet' }}
         </h3>
         <p class="text-xs text-slate-400 max-w-sm mb-6">
-          {{ isSearching ? 'Try adjusting your search terms or keywords.' : 'Add .epub files into your books directory and click Rescan.' }}
+          {{ isSearching ? 'Try adjusting your search terms or keywords.' : 'Add .epub or .pdf files into your books directory and click Rescan.' }}
         </p>
         <button
           v-if="!isSearching"

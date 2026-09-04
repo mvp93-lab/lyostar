@@ -270,7 +270,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					}
 
 					filename := filepath.Base(b.FilePath)
-					w.Header().Set("Content-Type", "application/epub+zip")
+					switch strings.ToLower(b.Format) {
+					case "pdf":
+						w.Header().Set("Content-Type", "application/pdf")
+					default:
+						w.Header().Set("Content-Type", "application/epub+zip")
+					}
 					w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
 					http.ServeFile(w, r, b.FilePath)
 				})

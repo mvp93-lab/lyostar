@@ -28,7 +28,7 @@
             v-else 
             class="w-full h-full flex flex-col justify-between p-4 bg-gradient-to-br from-slate-900 to-slate-950"
           >
-            <Book class="w-6 h-6 text-glacier-400" />
+            <component :is="book.format === 'pdf' ? FileText : Book" class="w-6 h-6 text-glacier-400" />
             <div>
               <p class="text-xs font-semibold text-white line-clamp-3">{{ book.title }}</p>
               <p class="text-[11px] text-slate-400 mt-1">{{ formatAuthors(book.authors) }}</p>
@@ -52,7 +52,7 @@
             class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-300 hover:text-white text-xs font-medium transition-all"
           >
             <Download class="w-4 h-4" />
-            Download EPUB
+            Download {{ (book.format || 'epub').toUpperCase() }}
           </a>
         </div>
       </div>
@@ -100,6 +100,10 @@
             <span class="text-slate-300 font-medium uppercase">{{ book.language || 'N/A' }}</span>
           </div>
           <div>
+            <span class="text-slate-500 block">Format</span>
+            <span class="text-slate-300 font-medium uppercase">{{ book.format || 'EPUB' }}</span>
+          </div>
+          <div>
             <span class="text-slate-500 block">File Size</span>
             <span class="text-slate-300 font-medium">{{ formatFileSize(book.file_size) }}</span>
           </div>
@@ -111,7 +115,7 @@
 
 <script setup>
 import { onMounted, onBeforeUnmount } from 'vue'
-import { X, Book, BookOpen, Download } from 'lucide-vue-next'
+import { X, Book, BookOpen, Download, FileText } from 'lucide-vue-next'
 
 const props = defineProps({
   book: {
