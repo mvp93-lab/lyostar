@@ -107,7 +107,7 @@ const CursorTool = {
 const AutoPrintRegExp = /\bprint\s*\(/;
 class OutputScale {
   constructor() {
-    const pixelRatio = window.devicePixelRatio || 1;
+    const pixelRatio = Math.max(window.devicePixelRatio || 1, 2);
     this.sx = pixelRatio;
     this.sy = pixelRatio;
   }
@@ -14579,6 +14579,7 @@ function webViewerLoad() {
   AppOptions.set('cMapUrl', './cmaps/');
   AppOptions.set('disableAutoFetch', true);
   AppOptions.set('disablePreferences', true);
+  AppOptions.set('defaultZoomValue', 'page-width');
 
   const event = new CustomEvent("webviewerloaded", {
     bubbles: true,
