@@ -97,6 +97,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(cfg.AuthMiddleware)
 
 	version := cfg.Version
 	if version == "" {
@@ -105,6 +106,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	// API routes
 	r.Route("/api", func(api chi.Router) {
+		// Auth routes (/api/auth/* and /api/users/*)
+		cfg.RegisterAuthRoutes(api)
+
 		api.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, HealthResponse{
 				Status:  "ok",
@@ -112,8 +116,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			})
 		})
 
-		// Trigger scanner
-		api.Post("/scan", func(w http.ResponseWriter, r *http.Request) {
+		// Trigger scanner (Admin only)
+		api.With(RequireAuth, RequireAdmin).Post("/scan", func(w http.ResponseWriter, r *http.Request) {
 			if cfg.Scanner == nil {
 				writeError(w, http.StatusInternalServerError, "scanner not configured")
 				return
@@ -125,8 +129,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			})
 		})
 
-		// Books endpoints
-		api.Route("/books", func(books chi.Router) {
+		// Protected endpoints (Require active authentication)
+		api.Group(func(protected chi.Router) {
+			protected.Use(RequireAuth)
+
+			// Books endpoints
+			protected.Route("/books", func(books chi.Router) {
 			// GET /api/books
 			books.Get("/", func(w http.ResponseWriter, r *http.Request) {
 				page, limit := parsePagination(r)
@@ -341,6 +349,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 				Limit: limit,
 				Total: total,
 			})
+		})
 		})
 
 		// 404 handler specifically for unhandled /api routes

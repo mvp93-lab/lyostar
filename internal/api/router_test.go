@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/lyostar/lyostar/internal/database"
 	"github.com/lyostar/lyostar/internal/scanner"
@@ -119,9 +120,32 @@ func TestRouterBooksEndpoints(t *testing.T) {
 		Role:     "aut",
 	})
 
+	// Seed admin user and session for test
+	adminUser, err := db.CreateUser(ctx, database.CreateUserParams{
+		Username:     "testadmin",
+		PasswordHash: "hashedpass",
+		Role:         "admin",
+		DisplayName:  "Test Admin",
+	})
+	if err != nil {
+		t.Fatalf("failed to create admin user: %v", err)
+	}
+
+	sessionToken := "test-session-token-12345"
+	_, err = db.CreateSession(ctx, database.CreateSessionParams{
+		Token:     sessionToken,
+		UserID:    adminUser.ID,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+	adminCookie := &http.Cookie{Name: "lyostar_session", Value: sessionToken}
+
 	// 1. Test GET /api/books
 	{
 		req := httptest.NewRequest(http.MethodGet, "/api/books?page=1&limit=10", nil)
+		req.AddCookie(adminCookie)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 
@@ -151,6 +175,7 @@ func TestRouterBooksEndpoints(t *testing.T) {
 	// 2. Test GET /api/books/{id}
 	{
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/books/%d", book.ID), nil)
+		req.AddCookie(adminCookie)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 
@@ -171,6 +196,7 @@ func TestRouterBooksEndpoints(t *testing.T) {
 
 		// 404 for invalid ID
 		req404 := httptest.NewRequest(http.MethodGet, "/api/books/9999", nil)
+		req404.AddCookie(adminCookie)
 		rec404 := httptest.NewRecorder()
 		router.ServeHTTP(rec404, req404)
 		if rec404.Code != http.StatusNotFound {
@@ -181,6 +207,7 @@ func TestRouterBooksEndpoints(t *testing.T) {
 	// 3. Test GET /api/books/{id}/cover
 	{
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/books/%d/cover", book.ID), nil)
+		req.AddCookie(adminCookie)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 
@@ -195,6 +222,7 @@ func TestRouterBooksEndpoints(t *testing.T) {
 	// 4. Test GET /api/books/{id}/file
 	{
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/books/%d/file", book.ID), nil)
+		req.AddCookie(adminCookie)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 
@@ -223,6 +251,7 @@ func TestRouterBooksEndpoints(t *testing.T) {
 		}
 
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/books/%d/file", pdfBook.ID), nil)
+		req.AddCookie(adminCookie)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 
@@ -237,6 +266,7 @@ func TestRouterBooksEndpoints(t *testing.T) {
 	// 5. Test GET /api/search
 	{
 		req := httptest.NewRequest(http.MethodGet, "/api/search?q=Sign", nil)
+		req.AddCookie(adminCookie)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 
@@ -254,6 +284,7 @@ func TestRouterBooksEndpoints(t *testing.T) {
 
 		// Empty search query
 		reqEmpty := httptest.NewRequest(http.MethodGet, "/api/search?q=", nil)
+		reqEmpty.AddCookie(adminCookie)
 		recEmpty := httptest.NewRecorder()
 		router.ServeHTTP(recEmpty, reqEmpty)
 		if recEmpty.Code != http.StatusOK {
@@ -264,6 +295,7 @@ func TestRouterBooksEndpoints(t *testing.T) {
 	// 6. Test POST /api/scan
 	{
 		req := httptest.NewRequest(http.MethodPost, "/api/scan", nil)
+		req.AddCookie(adminCookie)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 

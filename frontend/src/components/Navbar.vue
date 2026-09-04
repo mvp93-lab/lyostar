@@ -40,25 +40,65 @@
         </div>
       </div>
 
-      <!-- Actions -->
-      <div class="flex items-center gap-2.5 flex-shrink-0">
+      <!-- Actions & Profile -->
+      <div class="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
+        <!-- Admin-only: Users management -->
         <button
+          v-if="isAdmin"
+          @click="$emit('open-users')"
+          class="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-medium bg-[#11131b] hover:bg-[#161923] border border-white/[0.08] text-slate-300 hover:text-white transition-all cursor-pointer"
+          title="Manage Users"
+        >
+          <Users class="w-3.5 h-3.5 text-glacier-400" />
+          <span class="hidden md:inline">Users</span>
+        </button>
+
+        <!-- Admin-only: Rescan -->
+        <button
+          v-if="isAdmin"
           @click="$emit('scan')"
           :disabled="isScanning"
-          class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium bg-[#11131b] hover:bg-[#161923] border border-white/[0.08] text-slate-300 hover:text-white transition-all disabled:opacity-50"
+          class="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-medium bg-[#11131b] hover:bg-[#161923] border border-white/[0.08] text-slate-300 hover:text-white transition-all disabled:opacity-50 cursor-pointer"
           title="Rescan /books directory"
         >
           <RefreshCw class="w-3.5 h-3.5 text-glacier-400" :class="{ 'animate-spin': isScanning }" />
-          <span class="hidden sm:inline">{{ isScanning ? 'Scanning...' : 'Rescan' }}</span>
+          <span class="hidden md:inline">{{ isScanning ? 'Scanning...' : 'Rescan' }}</span>
         </button>
+
+        <!-- User Profile Pill -->
+        <div v-if="user" class="flex items-center gap-2 pl-1 sm:pl-2 border-l border-white/[0.08]">
+          <div class="flex items-center gap-2 bg-[#11131b] border border-white/[0.08] rounded-xl px-2.5 py-1.5">
+            <div class="w-6 h-6 rounded-lg bg-glacier-400/10 border border-glacier-400/20 flex items-center justify-center text-[11px] font-bold text-glacier-400">
+              {{ (user.display_name || user.username).charAt(0).toUpperCase() }}
+            </div>
+            <div class="hidden lg:block text-left">
+              <div class="text-xs font-medium text-slate-200 leading-tight">
+                {{ user.display_name || user.username }}
+              </div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider">
+                {{ user.role }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Logout Button -->
+          <button
+            @click="handleLogout"
+            class="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all cursor-pointer"
+            title="Sign out"
+          >
+            <LogOut class="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   </header>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
-import { BookOpen, Search, X, RefreshCw } from 'lucide-vue-next'
+import { ref } from 'vue'
+import { BookOpen, Search, X, RefreshCw, Users, LogOut } from 'lucide-vue-next'
+import { useAuth } from '../composables/useAuth'
 
 const props = defineProps({
   isScanning: {
@@ -67,8 +107,9 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['search', 'scan', 'reset'])
+const emit = defineEmits(['search', 'scan', 'reset', 'open-users'])
 
+const { user, isAdmin, logout } = useAuth()
 const searchQuery = ref('')
 let debounceTimer = null
 
@@ -82,5 +123,9 @@ function onSearchInput() {
 function clearSearch() {
   searchQuery.value = ''
   emit('search', '')
+}
+
+async function handleLogout() {
+  await logout()
 }
 </script>

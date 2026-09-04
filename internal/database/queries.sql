@@ -110,3 +110,49 @@ SELECT COUNT(*)
 FROM books b
 JOIN books_fts ON b.id = books_fts.rowid
 WHERE books_fts.fulltext MATCH ?;
+
+-- name: CountUsers :one
+SELECT COUNT(*) FROM users;
+
+-- name: CreateUser :one
+INSERT INTO users (username, password_hash, role, display_name)
+VALUES (?, ?, ?, ?)
+RETURNING *;
+
+-- name: GetUserByUsername :one
+SELECT * FROM users
+WHERE username = ? LIMIT 1;
+
+-- name: GetUserByID :one
+SELECT * FROM users
+WHERE id = ? LIMIT 1;
+
+-- name: ListUsers :many
+SELECT id, username, role, display_name, created_at, updated_at
+FROM users
+ORDER BY id ASC;
+
+-- name: DeleteUser :exec
+DELETE FROM users
+WHERE id = ?;
+
+-- name: CreateSession :one
+INSERT INTO sessions (token, user_id, expires_at)
+VALUES (?, ?, ?)
+RETURNING *;
+
+-- name: GetSessionWithUser :one
+SELECT s.token, s.user_id, s.expires_at, u.username, u.role, u.display_name
+FROM sessions s
+JOIN users u ON s.user_id = u.id
+WHERE s.token = ? AND s.expires_at > CURRENT_TIMESTAMP
+LIMIT 1;
+
+-- name: DeleteSession :exec
+DELETE FROM sessions
+WHERE token = ?;
+
+-- name: DeleteExpiredSessions :exec
+DELETE FROM sessions
+WHERE expires_at <= CURRENT_TIMESTAMP;
+
