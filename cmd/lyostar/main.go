@@ -16,6 +16,7 @@ import (
 	"github.com/lyostar/lyostar/internal/api"
 	"github.com/lyostar/lyostar/internal/config"
 	"github.com/lyostar/lyostar/internal/database"
+	"github.com/lyostar/lyostar/internal/scanner"
 )
 
 func main() {
@@ -42,6 +43,9 @@ func main() {
 	defer db.Close()
 	log.Printf("[Lyostar] Database initialized at %s (WAL mode, pure Go)", dbPath)
 
+	// Initialize background scanner
+	bookScanner := scanner.New(cfg.BooksDir, cacheCoversDir, db)
+
 	// Obtain embedded frontend static assets
 	distFS, err := frontend.DistFS()
 	if err != nil {
@@ -66,6 +70,9 @@ func main() {
 	// Setup graceful shutdown on SIGINT and SIGTERM
 	shutdownCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Trigger initial background scan
+	_ = bookScanner.Start(shutdownCtx)
 
 	serverErrors := make(chan error, 1)
 	go func() {
