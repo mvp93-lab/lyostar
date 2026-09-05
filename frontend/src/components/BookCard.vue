@@ -94,7 +94,17 @@
 
       <!-- Authors -->
       <p class="text-xs text-slate-400 mt-1 line-clamp-1">
-        {{ formatAuthors(book.authors) }}
+        <template v-if="book.authors && book.authors.length > 0">
+          <span
+            v-for="(author, idx) in book.authors"
+            :key="author"
+            @click.stop="$emit('filter-author', author)"
+            class="hover:text-glacier-400 hover:underline cursor-pointer transition-colors"
+          >
+            {{ author }}<span v-if="idx < book.authors.length - 1">, </span>
+          </span>
+        </template>
+        <span v-else>Unknown Author</span>
       </p>
 
       <!-- Tags Pills -->
@@ -127,11 +137,6 @@ const props = defineProps({
   }
 })
 
-defineEmits(['select', 'read', 'filter-tag', 'open-shelf'])
+defineEmits(['select', 'read', 'filter-tag', 'filter-author', 'open-shelf'])
 const { canRead } = useAuth()
-
-function formatAuthors(authors) {
-  if (!authors || authors.length === 0) return 'Unknown Author'
-  return authors.join(', ')
-}
 </script>

@@ -66,8 +66,8 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
   - [x] Nhóm MANAGEMENT: Upload sách (`can_upload`), Quản lý Users (Admin), Quét lại thư viện (Admin), Đăng xuất.
 - [x] **Web Routing & Deep-Linking (Chuẩn Calibre-Web)**:
   - [x] Tích hợp `vue-router` chuẩn HTML5 History mode không băm (`#`), đồng bộ 2 chiều giữa URL trình duyệt và trạng thái hiển thị.
-  - [x] Hỗ trợ URL cho từng tính năng: `/books`, `/continue-reading`, `/tags`, `/tags/:tag`, `/shelves/:id`, `/read/:id`, `/books/:id`, `/search?q=...`, `/users`, `/upload`, `/login`, `/setup`.
-  - [x] Deep-linking trực tiếp vào trình đọc sách (`/read/:id`) và chuyên trang chi tiết sách (`/books/:id`), tải thông tin độc lập khi mở link mới hoặc F5.
+  - [x] Hỗ trợ URL cho từng tính năng: `/books`, `/continue-reading`, `/tags`, `/tags/:tag`, `/authors`, `/authors/:author`, `/shelves/:id`, `/read/:id`, `/books/:id`, `/search?q=...`, `/users`, `/upload`, `/login`, `/setup`.
+  - [x] Deep-linking trực tiếp vào trình đọc sách (`/read/:id`), chuyên trang chi tiết sách (`/books/:id`), danh mục tác giả (`/authors`), tải thông tin độc lập khi mở link mới hoặc F5.
   - [x] Hỗ trợ hoàn hảo nút Back / Forward và phím tắt lịch sử của trình duyệt.
 - [x] **Lọc & Sắp xếp cơ bản**: Sắp xếp theo Tên sách, Tác giả, Thời gian thêm mới.
 - [x] **Chuyên trang Chi tiết sách (BookDetailView - Chuẩn Calibre-Web)**:
@@ -76,6 +76,13 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
   - [x] Cột phải hiển thị tiêu đề, tác giả, series, tập số, tags phân loại, tóm tắt/nội dung toàn văn tự nhiên (không bị cuộn lồng nhau) và bảng thông tin xuất bản chi tiết.
   - [x] Tích hợp trình biên tập Metadata trực tiếp trên trang (In-page Metadata Editor) cho user có quyền `can_edit` với gợi ý tag thông minh.
   - [x] Xác nhận xóa sách an toàn với quyền `can_delete`, tự động điều hướng về lại thư viện sau khi xóa.
+- [x] **Duyệt & Phân loại theo Tác giả (Authors Catalog - Chuẩn Calibre-Web)**:
+  - [x] Thêm mục **Authors** trên Sidebar BROWSE kèm badge số lượng tác giả (`authorsCount`).
+  - [x] Endpoint `GET /api/authors` trả về danh sách tác giả và số lượng đầu sách (`book_count`).
+  - [x] Lọc thư viện theo tác giả qua `GET /api/books?author=...`.
+  - [x] Chuyên trang danh mục tác giả (`AuthorsView.vue` tại route `/authors`) với ô tìm kiếm tức thì, thanh nhảy chữ cái A-Z và thẻ tác giả kèm avatar chữ cái phong cách Glacier Blue.
+  - [x] Hỗ trợ click trực tiếp vào tên tác giả trên thẻ sách (`BookCard.vue`) và chuyên trang chi tiết sách (`BookDetailView.vue`) để chuyển thẳng tới danh sách tác phẩm của tác giả đó.
+  - [x] Huy hiệu lọc theo tác giả trên kệ sách chính kèm nút xóa bộ lọc nhanh.
 - [x] **Tải sách về máy (Direct Download)**: Nút tải file EPUB/PDF gốc về máy cá nhân.
 - [x] **Kệ sách tùy chỉnh của User (Custom Shelves / Collections)**:
   - [x] Cho phép người dùng tự tạo, chỉnh sửa, xóa kệ sách cá nhân (ví dụ: *"Sách yêu thích"*, *"Muốn đọc"*, *"Học kỹ thuật"*).

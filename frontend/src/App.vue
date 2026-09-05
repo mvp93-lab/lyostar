@@ -30,6 +30,7 @@
           :total-books="totalBooks"
           :continue-count="continueBooks.length"
           :tags-count="tags.length"
+          :authors-count="authors.length"
           :is-scanning="isScanning"
           @close="sidebarOpen = false"
           @select-nav="handleSelectNav"
@@ -58,8 +59,16 @@
             :book-id="route.params.id"
             @read="openReader"
             @filter-tag="handleSelectTag"
+            @filter-author="handleSelectAuthor"
             @shelf-updated="onShelfUpdated"
             @deleted="onBookDeleted"
+          />
+
+          <!-- Dedicated Authors Catalog Page (Calibre-Web Style) -->
+          <AuthorsView
+            v-else-if="route.name === 'authors'"
+            :initial-authors="authors"
+            @select-author="handleSelectAuthor"
           />
 
           <!-- Main Shelf Content -->
@@ -72,19 +81,33 @@
                     {{ 
                       isSearching 
                         ? `Search Results for "${searchQuery}"` 
-                        : (selectedShelf 
-                            ? `Shelf: ${selectedShelf.name}` 
-                            : (activeNav === 'continue' 
-                                ? 'Continue Reading' 
-                                : (activeNav === 'tags' 
-                                    ? (selectedTag ? `Category: #${selectedTag}` : 'Categories & Tags') 
-                                    : (selectedTag ? `Category: #${selectedTag}` : 'All Books'))))
+                        : (selectedAuthor
+                            ? `Books by "${selectedAuthor}"`
+                            : (selectedShelf 
+                                ? `Shelf: ${selectedShelf.name}` 
+                                : (activeNav === 'continue' 
+                                    ? 'Continue Reading' 
+                                    : (activeNav === 'tags' 
+                                        ? (selectedTag ? `Category: #${selectedTag}` : 'Categories & Tags') 
+                                        : (selectedTag ? `Category: #${selectedTag}` : 'All Books')))))
                     }}
                   </h1>
 
+                  <!-- Active Author Clear Badge -->
+                  <button
+                    v-if="selectedAuthor"
+                    @click="clearAuthorFilter"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-glacier-500/15 text-glacier-300 border border-glacier-400/30 hover:bg-glacier-500/25 transition-colors cursor-pointer"
+                    title="Clear author filter"
+                  >
+                    <Users class="w-3 h-3 text-glacier-400" />
+                    <span>{{ selectedAuthor }}</span>
+                    <X class="w-3 h-3 text-glacier-400" />
+                  </button>
+
                   <!-- Active Shelf Clear Badge -->
                   <button
-                    v-if="selectedShelf"
+                    v-else-if="selectedShelf"
                     @click="clearShelfFilter"
                     class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-glacier-500/15 text-glacier-300 border border-glacier-400/30 hover:bg-glacier-500/25 transition-colors cursor-pointer"
                     title="Clear shelf filter"
@@ -107,7 +130,7 @@
                 </div>
 
                 <p class="text-xs text-slate-400 mt-1">
-                  {{ selectedShelf ? `${totalBooks} books in this shelf` : (activeNav === 'continue' ? `${continueBooks.length} books in progress` : `${totalBooks} books available`) }}
+                  {{ selectedAuthor ? `${totalBooks} books by ${selectedAuthor}` : (selectedShelf ? `${totalBooks} books in this shelf` : (activeNav === 'continue' ? `${continueBooks.length} books in progress` : `${totalBooks} books available`)) }}
                 </p>
               </div>
 
@@ -301,13 +324,20 @@
                   <BookX class="w-8 h-8" />
                 </div>
                 <h3 class="text-base font-semibold text-white mb-1">
-                  {{ isSearching ? 'No books found matching your search' : (selectedShelf ? `No books found in shelf "${selectedShelf.name}"` : (selectedTag ? `No books found with tag #${selectedTag}` : 'No books in library yet')) }}
+                  {{ isSearching ? 'No books found matching your search' : (selectedAuthor ? `No books found by author "${selectedAuthor}"` : (selectedShelf ? `No books found in shelf "${selectedShelf.name}"` : (selectedTag ? `No books found with tag #${selectedTag}` : 'No books in library yet'))) }}
                 </h3>
                 <p class="text-xs text-slate-400 max-w-sm mb-6">
-                  {{ isSearching ? 'Try adjusting your search terms or keywords.' : (selectedShelf ? 'Add books to this shelf using the "Add to Shelf" button on book cards or detail view.' : (selectedTag ? 'Try selecting another genre or clear the active filter.' : 'Add .epub or .pdf files into your books directory and click Rescan.')) }}
+                  {{ isSearching ? 'Try adjusting your search terms or keywords.' : (selectedAuthor ? 'Try browsing other authors from the Authors catalog.' : (selectedShelf ? 'Add books to this shelf using the "Add to Shelf" button on book cards or detail view.' : (selectedTag ? 'Try selecting another genre or clear the active filter.' : 'Add .epub or .pdf files into your books directory and click Rescan.'))) }}
                 </p>
                 <button
-                  v-if="selectedShelf"
+                  v-if="selectedAuthor"
+                  @click="clearAuthorFilter"
+                  class="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white text-xs font-medium transition-all cursor-pointer"
+                >
+                  Back to All Books
+                </button>
+                <button
+                  v-else-if="selectedShelf"
                   @click="clearShelfFilter"
                   class="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white text-xs font-medium transition-all cursor-pointer"
                 >
@@ -342,6 +372,7 @@
                   @select="openBookDetail(book)"
                   @read="openReader(book)"
                   @filter-tag="handleSelectTag"
+                  @filter-author="handleSelectAuthor"
                   @open-shelf="b => shelfSelectBook = b"
                 />
               </div>
@@ -435,11 +466,12 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Loader2, BookX, BookOpen, Tag, X, Bookmark, Check, AlertCircle } from 'lucide-vue-next'
+import { Loader2, BookX, BookOpen, Tag, X, Bookmark, Check, AlertCircle, Users } from 'lucide-vue-next'
 import Sidebar from './components/Sidebar.vue'
 import Navbar from './components/Navbar.vue'
 import BookCard from './components/BookCard.vue'
 import BookDetailView from './components/BookDetailView.vue'
+import AuthorsView from './components/AuthorsView.vue'
 import ReaderView from './components/ReaderView.vue'
 import SetupView from './components/SetupView.vue'
 import LoginView from './components/LoginView.vue'
@@ -453,6 +485,7 @@ import {
   triggerScan, 
   fetchContinueReading, 
   fetchTags, 
+  fetchAuthors, 
   fetchShelfBooks, 
   fetchShelves, 
   fetchBookDetail 
@@ -472,7 +505,9 @@ const shelvesList = ref([])
 const books = ref([])
 const continueBooks = ref([])
 const tags = ref([])
+const authors = ref([])
 const selectedTag = ref('')
+const selectedAuthor = ref('')
 const selectedShelf = ref(null)
 const totalBooks = ref(0)
 const currentPage = ref(1)
@@ -521,6 +556,16 @@ async function loadTags() {
   }
 }
 
+async function loadAuthors() {
+  if (!isAuthenticated.value) return
+  try {
+    const items = await fetchAuthors()
+    authors.value = items || []
+  } catch (err) {
+    console.warn('Failed to load authors:', err)
+  }
+}
+
 async function loadData(page = 1, append = false) {
   if (!isAuthenticated.value) return
   loading.value = true
@@ -528,6 +573,8 @@ async function loadData(page = 1, append = false) {
     let res
     if (isSearching.value) {
       res = await searchBooks({ q: searchQuery.value, page, limit: pageSize })
+    } else if (selectedAuthor.value) {
+      res = await fetchBooks({ page, limit: pageSize, author: selectedAuthor.value })
     } else if (selectedShelf.value) {
       res = await fetchShelfBooks(selectedShelf.value.id, { page, limit: pageSize })
     } else {
@@ -587,12 +634,14 @@ async function syncFromRoute(r = route) {
     activeNav.value = 'continue'
     selectedShelf.value = null
     selectedTag.value = ''
+    selectedAuthor.value = ''
     searchQuery.value = ''
     await loadContinueReading()
   } else if (name === 'tags') {
     activeNav.value = 'tags'
     selectedShelf.value = null
     selectedTag.value = ''
+    selectedAuthor.value = ''
     searchQuery.value = ''
     await loadTags()
     await loadData(1, false)
@@ -600,6 +649,21 @@ async function syncFromRoute(r = route) {
     activeNav.value = 'tags'
     selectedShelf.value = null
     selectedTag.value = decodeURIComponent(params.tag || '')
+    selectedAuthor.value = ''
+    searchQuery.value = ''
+    await loadData(1, false)
+  } else if (name === 'authors') {
+    activeNav.value = 'authors'
+    selectedShelf.value = null
+    selectedTag.value = ''
+    selectedAuthor.value = ''
+    searchQuery.value = ''
+    await loadAuthors()
+  } else if (name === 'author-books') {
+    activeNav.value = 'authors'
+    selectedShelf.value = null
+    selectedTag.value = ''
+    selectedAuthor.value = decodeURIComponent(params.author || '')
     searchQuery.value = ''
     await loadData(1, false)
   } else if (name === 'shelf-books') {
@@ -610,12 +674,14 @@ async function syncFromRoute(r = route) {
     }
     selectedShelf.value = shelvesList.value.find(s => s.id === shelfId) || { id: shelfId, name: 'Custom Shelf' }
     selectedTag.value = ''
+    selectedAuthor.value = ''
     searchQuery.value = ''
     await loadData(1, false)
   } else if (name === 'search') {
     activeNav.value = 'books'
     selectedShelf.value = null
     selectedTag.value = ''
+    selectedAuthor.value = ''
     searchQuery.value = query.q || ''
     await loadData(1, false)
   } else {
@@ -623,6 +689,7 @@ async function syncFromRoute(r = route) {
     activeNav.value = 'books'
     selectedShelf.value = null
     selectedTag.value = query.tag || ''
+    selectedAuthor.value = query.author || ''
     searchQuery.value = query.q || ''
     const page = Number(query.page) || 1
     await loadData(page, false)
@@ -641,7 +708,21 @@ function handleSelectNav(nav) {
     router.push('/continue-reading')
   } else if (nav === 'tags') {
     router.push('/tags')
+  } else if (nav === 'authors') {
+    router.push('/authors')
   }
+}
+
+function handleSelectAuthor(authorName) {
+  if (authorName) {
+    router.push(`/authors/${encodeURIComponent(authorName)}`)
+  } else {
+    router.push('/books')
+  }
+}
+
+function clearAuthorFilter() {
+  router.push('/books')
 }
 
 function handleSelectShelf(shelf) {
@@ -783,6 +864,7 @@ function onAuthSuccess() {
 function onBooksUploaded() {
   loadData(1, false)
   loadTags()
+  loadAuthors()
   loadShelves()
 }
 
@@ -804,6 +886,7 @@ function onBookUpdated(updatedBook) {
   }
 
   loadTags()
+  loadAuthors()
   loadShelves()
 }
 
@@ -817,6 +900,7 @@ function onBookDeleted(bookId) {
     router.replace('/books')
   }
   loadTags()
+  loadAuthors()
   loadShelves()
 }
 
@@ -824,6 +908,7 @@ watch(isAuthenticated, async (newVal) => {
   if (newVal) {
     await loadShelves()
     await loadTags()
+    await loadAuthors()
     await loadContinueReading()
     await syncFromRoute(route)
   } else {
@@ -833,7 +918,9 @@ watch(isAuthenticated, async (newVal) => {
     books.value = []
     continueBooks.value = []
     tags.value = []
+    authors.value = []
     selectedTag.value = ''
+    selectedAuthor.value = ''
     selectedShelf.value = null
     totalBooks.value = 0
     readingBook.value = null
@@ -849,6 +936,7 @@ onMounted(async () => {
   if (isAuthenticated.value) {
     await loadShelves()
     await loadTags()
+    await loadAuthors()
     await loadContinueReading()
     await syncFromRoute(route)
   }

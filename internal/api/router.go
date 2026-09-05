@@ -104,6 +104,13 @@ type TagItem struct {
 	BookCount int64  `json:"book_count"`
 }
 
+// AuthorItem represents an author with their book count.
+type AuthorItem struct {
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	BookCount int64  `json:"book_count"`
+}
+
 // AuthorRoleItem represents an author with their contribution role.
 type AuthorRoleItem struct {
 	ID   int64  `json:"id"`
@@ -174,6 +181,26 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					ID:        tr.ID,
 					Name:      tr.Name,
 					BookCount: tr.BookCount,
+				})
+			}
+
+			writeJSON(w, http.StatusOK, items)
+		})
+
+		// GET /api/authors (List all authors with book counts)
+		api.Get("/authors", func(w http.ResponseWriter, r *http.Request) {
+			authorRows, err := cfg.DB.ListAuthorsWithBookCount(r.Context())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to query authors")
+				return
+			}
+
+			items := make([]AuthorItem, 0, len(authorRows))
+			for _, ar := range authorRows {
+				items = append(items, AuthorItem{
+					ID:        ar.ID,
+					Name:      ar.Name,
+					BookCount: ar.BookCount,
 				})
 			}
 
@@ -303,6 +330,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					page, limit := parsePagination(r)
 					offset := (page - 1) * limit
 					tagFilter := strings.TrimSpace(r.URL.Query().Get("tag"))
+					authorFilter := strings.TrimSpace(r.URL.Query().Get("author"))
 
 					userID := int64(0)
 					if u := auth.GetUser(r.Context()); u != nil {
@@ -312,7 +340,36 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					var items []BookListItem
 					var total int64
 
-					if tagFilter != "" {
+					if authorFilter != "" {
+						rows, err := cfg.DB.ListBooksByAuthorWithAuthorsAndProgress(r.Context(), database.ListBooksByAuthorWithAuthorsAndProgressParams{
+							UserID: userID,
+							Name:   authorFilter,
+							Limit:  int64(limit),
+							Offset: int64(offset),
+						})
+						if err != nil {
+							writeError(w, http.StatusInternalServerError, "failed to query books by author")
+							return
+						}
+
+						count, err := cfg.DB.CountBooksByAuthor(r.Context(), authorFilter)
+						if err != nil {
+							writeError(w, http.StatusInternalServerError, "failed to count books by author")
+							return
+						}
+						total = count
+
+						items = make([]BookListItem, 0, len(rows))
+						for _, row := range rows {
+							items = append(items, toBookListItem(
+								row.ID, row.Title, row.AuthorNames, row.TagNames, row.Description,
+								row.Publisher, row.Language, row.PubDate, row.Series,
+								row.SeriesIndex, row.FileSize, row.Format, row.CoverPath,
+								row.CreatedAt, row.UpdatedAt,
+								row.UserProgress, row.UserIsFinished == 1,
+							))
+						}
+					} else if tagFilter != "" {
 						rows, err := cfg.DB.ListBooksByTagWithAuthorsAndProgress(r.Context(), database.ListBooksByTagWithAuthorsAndProgressParams{
 							UserID: userID,
 							Name:   tagFilter,

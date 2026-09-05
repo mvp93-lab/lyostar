@@ -191,9 +191,11 @@
                   <span 
                     v-for="(author, idx) in formattedAuthorsList" 
                     :key="idx"
-                    class="font-semibold text-glacier-300 hover:text-glacier-200 transition-colors"
+                    @click="navigateToAuthor(author)"
+                    class="font-semibold text-glacier-300 hover:text-glacier-200 hover:underline cursor-pointer transition-colors"
+                    :title="`View books by ${author}`"
                   >
-                    {{ author }}<span v-if="idx < formattedAuthorsList.length - 1" class="text-slate-500">,</span>
+                    {{ author }}<span v-if="idx < formattedAuthorsList.length - 1" class="text-slate-500 no-underline">,</span>
                   </span>
                 </div>
               </div>
@@ -563,7 +565,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['read', 'filter-tag', 'shelf-updated', 'deleted'])
+const emit = defineEmits(['read', 'filter-tag', 'filter-author', 'shelf-updated', 'deleted'])
 
 const router = useRouter()
 const route = useRoute()
@@ -649,6 +651,11 @@ function goBack() {
 function navigateToTag(tagName) {
   emit('filter-tag', tagName)
   router.push(`/tags/${encodeURIComponent(tagName)}`)
+}
+
+function navigateToAuthor(authorName) {
+  emit('filter-author', authorName)
+  router.push(`/authors/${encodeURIComponent(authorName)}`)
 }
 
 function handleRead() {

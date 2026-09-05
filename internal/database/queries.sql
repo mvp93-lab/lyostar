@@ -66,6 +66,39 @@ SELECT * FROM authors
 ORDER BY name ASC
 LIMIT ? OFFSET ?;
 
+-- name: ListAuthorsWithBookCount :many
+SELECT a.id, a.name, a.created_at, COUNT(DISTINCT ba.book_id) as book_count
+FROM authors a
+JOIN book_authors ba ON a.id = ba.author_id
+GROUP BY a.id
+HAVING book_count > 0
+ORDER BY a.name COLLATE NOCASE ASC;
+
+-- name: ListBooksByAuthorWithAuthorsAndProgress :many
+SELECT
+    b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
+    b.description, b.publisher, b.language, b.pub_date, b.series,
+    b.series_index, b.cover_path, b.created_at, b.updated_at,
+    coalesce((SELECT GROUP_CONCAT(a2.name, ', ') FROM book_authors ba2 JOIN authors a2 ON ba2.author_id = a2.id WHERE ba2.book_id = b.id), '') as author_names,
+    coalesce((SELECT GROUP_CONCAT(t.name, ', ') FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = b.id), '') as tag_names,
+    coalesce(rp.progress, 0.0) as user_progress,
+    coalesce(rp.is_finished, 0) as user_is_finished
+FROM books b
+JOIN book_authors ba ON b.id = ba.book_id
+JOIN authors a ON ba.author_id = a.id
+LEFT JOIN reading_progress rp ON b.id = rp.book_id AND rp.user_id = ?
+WHERE a.name = ?
+GROUP BY b.id
+ORDER BY b.id DESC
+LIMIT ? OFFSET ?;
+
+-- name: CountBooksByAuthor :one
+SELECT COUNT(DISTINCT b.id)
+FROM books b
+JOIN book_authors ba ON b.id = ba.book_id
+JOIN authors a ON ba.author_id = a.id
+WHERE a.name = ?;
+
 -- name: AddBookAuthor :exec
 INSERT INTO book_authors (book_id, author_id, role)
 VALUES (?, ?, ?)

@@ -23,6 +23,14 @@ const routes = [
     name: 'tag-filter'
   },
   {
+    path: '/authors',
+    name: 'authors'
+  },
+  {
+    path: '/authors/:author',
+    name: 'author-books'
+  },
+  {
     path: '/shelves/:id',
     name: 'shelf-books'
   },

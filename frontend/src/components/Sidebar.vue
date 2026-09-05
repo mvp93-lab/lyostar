@@ -100,6 +100,23 @@
                 {{ tagsCount }}
               </span>
             </button>
+
+            <!-- Authors -->
+            <button
+              @click="onNavClick('authors')"
+              class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all group cursor-pointer"
+              :class="activeNav === 'authors' && !selectedShelf
+                ? 'bg-glacier-500/15 text-glacier-300 font-semibold border border-glacier-400/30 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'"
+            >
+              <div class="flex items-center gap-2.5">
+                <Users class="w-4 h-4 transition-colors" :class="activeNav === 'authors' && !selectedShelf ? 'text-glacier-400' : 'text-slate-500 group-hover:text-slate-300'" />
+                <span>Authors</span>
+              </div>
+              <span v-if="authorsCount > 0" class="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-white/[0.05] text-slate-500">
+                {{ authorsCount }}
+              </span>
+            </button>
           </nav>
         </div>
 
@@ -274,6 +291,10 @@ const props = defineProps({
     type: Number,
     default: 0
   },
+  authorsCount: {
+    type: Number,
+    default: 0
+  },
   isScanning: {
     type: Boolean,
     default: false
@@ -303,6 +324,8 @@ function onNavClick(nav) {
     router.push('/continue-reading')
   } else if (nav === 'tags') {
     router.push('/tags')
+  } else if (nav === 'authors') {
+    router.push('/authors')
   }
 }
 

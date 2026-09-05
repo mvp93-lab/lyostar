@@ -89,6 +89,21 @@ func (q *Queries) CountBooks(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countBooksByAuthor = `-- name: CountBooksByAuthor :one
+SELECT COUNT(DISTINCT b.id)
+FROM books b
+JOIN book_authors ba ON b.id = ba.book_id
+JOIN authors a ON ba.author_id = a.id
+WHERE a.name = ?
+`
+
+func (q *Queries) CountBooksByAuthor(ctx context.Context, name string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countBooksByAuthor, name)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countBooksByShelf = `-- name: CountBooksByShelf :one
 SELECT COUNT(*)
 FROM shelf_books
@@ -987,6 +1002,50 @@ func (q *Queries) ListAuthors(ctx context.Context, arg ListAuthorsParams) ([]Aut
 	return items, nil
 }
 
+const listAuthorsWithBookCount = `-- name: ListAuthorsWithBookCount :many
+SELECT a.id, a.name, a.created_at, COUNT(DISTINCT ba.book_id) as book_count
+FROM authors a
+JOIN book_authors ba ON a.id = ba.author_id
+GROUP BY a.id
+HAVING book_count > 0
+ORDER BY a.name COLLATE NOCASE ASC
+`
+
+type ListAuthorsWithBookCountRow struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+	BookCount int64     `json:"book_count"`
+}
+
+func (q *Queries) ListAuthorsWithBookCount(ctx context.Context) ([]ListAuthorsWithBookCountRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAuthorsWithBookCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAuthorsWithBookCountRow
+	for rows.Next() {
+		var i ListAuthorsWithBookCountRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.BookCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBookmarksForUserAndBook = `-- name: ListBookmarksForUserAndBook :many
 SELECT id, user_id, book_id, title, location, progress, created_at FROM bookmarks
 WHERE user_id = ? AND book_id = ?
@@ -1066,6 +1125,102 @@ func (q *Queries) ListBooks(ctx context.Context, arg ListBooksParams) ([]Book, e
 			&i.CoverPath,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBooksByAuthorWithAuthorsAndProgress = `-- name: ListBooksByAuthorWithAuthorsAndProgress :many
+SELECT
+    b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
+    b.description, b.publisher, b.language, b.pub_date, b.series,
+    b.series_index, b.cover_path, b.created_at, b.updated_at,
+    coalesce((SELECT GROUP_CONCAT(a2.name, ', ') FROM book_authors ba2 JOIN authors a2 ON ba2.author_id = a2.id WHERE ba2.book_id = b.id), '') as author_names,
+    coalesce((SELECT GROUP_CONCAT(t.name, ', ') FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = b.id), '') as tag_names,
+    coalesce(rp.progress, 0.0) as user_progress,
+    coalesce(rp.is_finished, 0) as user_is_finished
+FROM books b
+JOIN book_authors ba ON b.id = ba.book_id
+JOIN authors a ON ba.author_id = a.id
+LEFT JOIN reading_progress rp ON b.id = rp.book_id AND rp.user_id = ?
+WHERE a.name = ?
+GROUP BY b.id
+ORDER BY b.id DESC
+LIMIT ? OFFSET ?
+`
+
+type ListBooksByAuthorWithAuthorsAndProgressParams struct {
+	UserID int64  `json:"user_id"`
+	Name   string `json:"name"`
+	Limit  int64  `json:"limit"`
+	Offset int64  `json:"offset"`
+}
+
+type ListBooksByAuthorWithAuthorsAndProgressRow struct {
+	ID             int64       `json:"id"`
+	Title          string      `json:"title"`
+	FilePath       string      `json:"file_path"`
+	FileSha256     string      `json:"file_sha256"`
+	FileSize       int64       `json:"file_size"`
+	Format         string      `json:"format"`
+	Description    string      `json:"description"`
+	Publisher      string      `json:"publisher"`
+	Language       string      `json:"language"`
+	PubDate        string      `json:"pub_date"`
+	Series         string      `json:"series"`
+	SeriesIndex    float64     `json:"series_index"`
+	CoverPath      string      `json:"cover_path"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
+	AuthorNames    interface{} `json:"author_names"`
+	TagNames       interface{} `json:"tag_names"`
+	UserProgress   float64     `json:"user_progress"`
+	UserIsFinished int64       `json:"user_is_finished"`
+}
+
+func (q *Queries) ListBooksByAuthorWithAuthorsAndProgress(ctx context.Context, arg ListBooksByAuthorWithAuthorsAndProgressParams) ([]ListBooksByAuthorWithAuthorsAndProgressRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBooksByAuthorWithAuthorsAndProgress,
+		arg.UserID,
+		arg.Name,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListBooksByAuthorWithAuthorsAndProgressRow
+	for rows.Next() {
+		var i ListBooksByAuthorWithAuthorsAndProgressRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.FilePath,
+			&i.FileSha256,
+			&i.FileSize,
+			&i.Format,
+			&i.Description,
+			&i.Publisher,
+			&i.Language,
+			&i.PubDate,
+			&i.Series,
+			&i.SeriesIndex,
+			&i.CoverPath,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AuthorNames,
+			&i.TagNames,
+			&i.UserProgress,
+			&i.UserIsFinished,
 		); err != nil {
 			return nil, err
 		}
