@@ -198,17 +198,80 @@
             />
           </div>
 
-          <!-- Tags / Categories Input -->
-          <div>
-            <label class="block text-slate-400 font-medium mb-1">
-              Categories / Tags <span class="text-slate-500 font-normal">(comma-separated)</span>
-            </label>
-            <input
-              v-model="editForm.tagsStr"
-              type="text"
-              placeholder="e.g. Science Fiction, Cyberpunk, Adventure"
-              class="w-full px-3 py-2 rounded-xl bg-slate-900/80 border border-white/[0.1] text-white text-xs placeholder-slate-500 focus:outline-none focus:border-glacier-400 focus:ring-1 focus:ring-glacier-400 transition-colors"
-            />
+          <!-- Tags / Categories Chips Input with Autocomplete Dropdown -->
+          <div class="relative">
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-slate-400 font-medium">
+                Categories / Tags <span class="text-slate-500 font-normal text-[11px]">(press Enter or comma to add)</span>
+              </label>
+              <span class="text-[10px] text-slate-500">
+                {{ editForm.tags.length }} {{ editForm.tags.length === 1 ? 'tag' : 'tags' }}
+              </span>
+            </div>
+
+            <!-- Chips Container Box -->
+            <div
+              @click="focusTagInput"
+              class="w-full min-h-[44px] p-2 rounded-xl bg-slate-900/80 border border-white/[0.1] focus-within:border-glacier-400 focus-within:ring-1 focus-within:ring-glacier-400 transition-colors flex flex-wrap items-center gap-1.5 cursor-text"
+            >
+              <!-- Render existing tag chips -->
+              <span
+                v-for="(tag, index) in editForm.tags"
+                :key="index"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.08] hover:bg-white/[0.12] border border-white/[0.1] text-slate-200 text-xs transition-colors"
+              >
+                <Tag class="w-3 h-3 text-glacier-400/80" />
+                <span class="font-medium">{{ tag }}</span>
+                <button
+                  type="button"
+                  @click.stop="removeTag(index)"
+                  class="ml-0.5 p-0.5 rounded hover:bg-white/20 text-slate-400 hover:text-rose-300 transition-colors cursor-pointer"
+                  title="Remove tag"
+                >
+                  <X class="w-3 h-3" />
+                </button>
+              </span>
+
+              <!-- Inline input for typing new tags -->
+              <input
+                ref="tagInputRef"
+                v-model="tagInputText"
+                type="text"
+                placeholder="Enter tag and press Enter..."
+                @focus="showTagDropdown = true"
+                @input="showTagDropdown = true; selectedTagIndex = -1"
+                @blur="handleTagBlur"
+                @keydown="handleTagKeyDown"
+                class="flex-1 min-w-[140px] bg-transparent text-white text-xs placeholder-slate-500 outline-none py-1"
+              />
+            </div>
+
+            <!-- Autocomplete Suggestions Dropdown -->
+            <div
+              v-if="showTagDropdown && filteredTagSuggestions.length > 0"
+              class="absolute left-0 right-0 top-full mt-1.5 z-30 bg-[#161923] border border-white/[0.12] rounded-xl shadow-2xl shadow-black/80 max-h-48 overflow-y-auto py-1 backdrop-blur-md"
+            >
+              <div class="px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-white/[0.06] flex items-center justify-between">
+                <span>Existing Categories</span>
+                <span>{{ filteredTagSuggestions.length }} matches</span>
+              </div>
+              <button
+                v-for="(t, idx) in filteredTagSuggestions"
+                :key="t.id"
+                type="button"
+                @mousedown.prevent="addTag(t.name)"
+                class="w-full px-3 py-2 flex items-center justify-between text-left text-xs transition-colors cursor-pointer"
+                :class="selectedTagIndex === idx ? 'bg-glacier-500/20 text-glacier-300' : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <Tag class="w-3.5 h-3.5 text-glacier-400/80 flex-shrink-0" />
+                  <span class="font-medium truncate">{{ t.name }}</span>
+                </div>
+                <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.06] text-slate-400 font-mono flex-shrink-0 ml-2">
+                  {{ t.book_count }} {{ t.book_count === 1 ? 'book' : 'books' }}
+                </span>
+              </button>
+            </div>
           </div>
 
           <!-- Series and Index Grid -->
@@ -342,10 +405,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { X, Book, BookOpen, Download, FileText, Pencil, Trash2, Save, Loader2, AlertCircle, Tag } from 'lucide-vue-next'
 import { useAuth } from '../composables/useAuth'
-import { updateBookMetadata, deleteBook } from '../api/client'
+import { updateBookMetadata, deleteBook, fetchTags } from '../api/client'
 
 const props = defineProps({
   book: {
@@ -365,10 +428,15 @@ const showDeleteConfirm = ref(false)
 const deleting = ref(false)
 const deleteError = ref('')
 
+const availableTags = ref([])
+const showTagDropdown = ref(false)
+const selectedTagIndex = ref(-1)
+const tagInputRef = ref(null)
+
 const editForm = reactive({
   title: '',
   authorsStr: '',
-  tagsStr: '',
+  tags: [],
   series: '',
   series_index: 0,
   publisher: '',
@@ -377,31 +445,132 @@ const editForm = reactive({
   description: ''
 })
 
+const tagInputText = ref('')
+
+function focusTagInput() {
+  tagInputRef.value?.focus()
+}
+
+// Current set of tags already added as chips
+const currentEnteredTags = computed(() => {
+  return new Set(editForm.tags.map(t => t.toLowerCase()))
+})
+
+// Current text query typed in input
+const currentTagQuery = computed(() => {
+  return tagInputText.value.trim().toLowerCase()
+})
+
+// Dynamic suggestions: filtered by query, excluding already added tags
+const filteredTagSuggestions = computed(() => {
+  const entered = currentEnteredTags.value
+  const q = currentTagQuery.value
+
+  let list = availableTags.value.filter(t => !entered.has(t.name.toLowerCase()))
+  if (q) {
+    list = list.filter(t => t.name.toLowerCase().includes(q))
+  }
+  return list.slice(0, 8)
+})
+
+function addTag(name) {
+  const val = (typeof name === 'string' ? name : tagInputText.value).trim()
+  if (!val) return
+
+  // Support comma-separated input or pasting multiple tags
+  const newItems = val.split(',').map(s => s.trim()).filter(Boolean)
+  for (const item of newItems) {
+    const exists = editForm.tags.some(t => t.toLowerCase() === item.toLowerCase())
+    if (!exists) {
+      editForm.tags.push(item)
+    }
+  }
+
+  tagInputText.value = ''
+  selectedTagIndex.value = -1
+  showTagDropdown.value = false
+  tagInputRef.value?.focus()
+}
+
+function removeTag(index) {
+  editForm.tags.splice(index, 1)
+  tagInputRef.value?.focus()
+}
+
+function handleTagKeyDown(e) {
+  // Backspace on empty input removes the last chip
+  if (e.key === 'Backspace' && tagInputText.value === '' && editForm.tags.length > 0) {
+    editForm.tags.pop()
+    return
+  }
+
+  // Enter or Comma creates a new chip
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault()
+    if (showTagDropdown.value && selectedTagIndex.value >= 0 && selectedTagIndex.value < filteredTagSuggestions.value.length) {
+      addTag(filteredTagSuggestions.value[selectedTagIndex.value].name)
+    } else {
+      addTag()
+    }
+    return
+  }
+
+  if (!showTagDropdown.value || filteredTagSuggestions.value.length === 0) {
+    if (e.key === 'ArrowDown') {
+      showTagDropdown.value = true
+    }
+    return
+  }
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    selectedTagIndex.value = (selectedTagIndex.value + 1) % filteredTagSuggestions.value.length
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    selectedTagIndex.value = (selectedTagIndex.value - 1 + filteredTagSuggestions.value.length) % filteredTagSuggestions.value.length
+  } else if (e.key === 'Escape') {
+    showTagDropdown.value = false
+  }
+}
+
+function handleTagBlur() {
+  setTimeout(() => {
+    showTagDropdown.value = false
+  }, 180)
+}
+
 watch(() => props.book, (newBook) => {
   currentBook.value = newBook ? { ...newBook } : null
   isEditing.value = false
   showDeleteConfirm.value = false
+  showTagDropdown.value = false
+  tagInputText.value = ''
 }, { immediate: true })
 
-function startEditing() {
+async function startEditing() {
   if (!currentBook.value) return
   editError.value = ''
-  
+  showTagDropdown.value = false
+  selectedTagIndex.value = -1
+  tagInputText.value = ''
+
+  // Load existing tags from server to power autocomplete suggestions
+  try {
+    const list = await fetchTags()
+    availableTags.value = list || []
+  } catch (err) {
+    console.warn('Failed to load tags for autocomplete:', err)
+  }
+
   // Format authors to comma-separated string
   let authorsText = ''
   if (Array.isArray(currentBook.value.authors)) {
     authorsText = currentBook.value.authors.map(a => typeof a === 'string' ? a : a.name).filter(Boolean).join(', ')
   }
 
-  // Format tags to comma-separated string
-  let tagsText = ''
-  if (Array.isArray(currentBook.value.tags)) {
-    tagsText = currentBook.value.tags.filter(Boolean).join(', ')
-  }
-
   editForm.title = currentBook.value.title || ''
   editForm.authorsStr = authorsText
-  editForm.tagsStr = tagsText
+  editForm.tags = Array.isArray(currentBook.value.tags) ? [...currentBook.value.tags] : []
   editForm.series = currentBook.value.series || ''
   editForm.series_index = currentBook.value.series_index || 0
   editForm.publisher = currentBook.value.publisher || ''
@@ -415,6 +584,8 @@ function startEditing() {
 function cancelEditing() {
   isEditing.value = false
   editError.value = ''
+  showTagDropdown.value = false
+  tagInputText.value = ''
 }
 
 async function saveChanges() {
@@ -422,6 +593,11 @@ async function saveChanges() {
   if (!editForm.title.trim()) {
     editError.value = 'Book title cannot be empty.'
     return
+  }
+
+  // Commit any unsubmitted text remaining in input before saving
+  if (tagInputText.value.trim()) {
+    addTag()
   }
 
   saving.value = true
@@ -433,15 +609,10 @@ async function saveChanges() {
       .map(s => s.trim())
       .filter(Boolean)
 
-    const tags = editForm.tagsStr
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean)
-
     const payload = {
       title: editForm.title.trim(),
       authors,
-      tags,
+      tags: editForm.tags,
       series: editForm.series.trim(),
       series_index: Number(editForm.series_index) || 0,
       publisher: editForm.publisher.trim(),
