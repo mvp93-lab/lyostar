@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-[#090a0f] text-slate-100 flex flex-col selection:bg-glacier-500/20 selection:text-glacier-400">
+  <div class="min-h-screen bg-[#090a0f] text-slate-100 selection:bg-glacier-500/20 selection:text-glacier-400">
     <!-- Initial Auth Loading State -->
     <div v-if="authLoading" class="min-h-screen flex flex-col items-center justify-center text-slate-500">
       <Loader2 class="w-8 h-8 text-glacier-400 animate-spin mb-3" />
@@ -20,218 +20,337 @@
 
     <!-- Main Application (Authenticated) -->
     <template v-else>
-      <!-- Navbar -->
-      <Navbar
-        :is-scanning="isScanning"
-        @search="handleSearch"
-        @scan="handleScan"
-        @reset="resetView"
-        @open-users="showUsersModal = true"
-        @open-upload="showUploadModal = true"
-        @open-shelves="showShelvesModal = true"
-      />
+      <div class="min-h-screen flex bg-[#090a0f]">
+        <!-- Sidebar Navigation Drawer (Calibre-Web Style) -->
+        <Sidebar
+          :is-open="sidebarOpen"
+          :active-nav="activeNav"
+          :selected-shelf="selectedShelf"
+          :shelves="shelvesList"
+          :total-books="totalBooks"
+          :continue-count="continueBooks.length"
+          :tags-count="tags.length"
+          :is-scanning="isScanning"
+          @close="sidebarOpen = false"
+          @select-nav="handleSelectNav"
+          @select-shelf="handleSelectShelf"
+          @create-shelf="showShelvesModal = true"
+          @manage-shelves="showShelvesModal = true"
+          @open-upload="showUploadModal = true"
+          @open-users="showUsersModal = true"
+          @scan="handleScan"
+        />
 
-      <!-- Main Shelf Content -->
-      <main class="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-8">
-        <!-- Section Header -->
-        <div class="flex items-center justify-between mb-6">
-          <div>
-            <div class="flex items-center gap-3">
-              <h1 class="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                {{ isSearching ? `Search Results for "${searchQuery}"` : (selectedShelf ? `Shelf: ${selectedShelf.name}` : (selectedTag ? `Category: #${selectedTag}` : 'Library Shelf')) }}
-              </h1>
-              <button
-                v-if="selectedShelf"
-                @click="clearShelfFilter"
-                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-glacier-500/15 text-glacier-300 border border-glacier-400/30 hover:bg-glacier-500/25 transition-colors cursor-pointer"
-                title="Clear shelf filter"
-              >
-                <Bookmark class="w-3 h-3 text-glacier-400" />
-                <span>{{ selectedShelf.name }}</span>
-                <X class="w-3 h-3 text-glacier-400" />
-              </button>
-              <button
-                v-else-if="selectedTag"
-                @click="clearTagFilter"
-                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-glacier-500/15 text-glacier-300 border border-glacier-400/30 hover:bg-glacier-500/25 transition-colors cursor-pointer"
-                title="Clear tag filter"
-              >
-                <span>#{{ selectedTag }}</span>
-                <X class="w-3 h-3 text-glacier-400" />
-              </button>
-            </div>
-            <p class="text-xs text-slate-400 mt-1">
-              {{ totalBooks }} {{ totalBooks === 1 ? 'book' : 'books' }} {{ selectedShelf ? 'in this shelf' : 'available' }}
-            </p>
-          </div>
-
-          <!-- Scan message banner if active -->
-          <div 
-            v-if="scanMessage" 
-            class="text-xs px-3 py-1.5 rounded-xl bg-glacier-500/10 border border-glacier-500/20 text-glacier-400 flex items-center gap-2 animate-fade-in"
-          >
-            <span class="w-2 h-2 rounded-full bg-glacier-400 animate-pulse"></span>
-            <span>{{ scanMessage }}</span>
-          </div>
-        </div>
-
-        <!-- Tag Filter Pills Bar -->
-        <div v-if="!isSearching && !selectedShelf && tags.length > 0" class="mb-6 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-          <button
-            @click="clearTagFilter"
-            class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer border"
-            :class="!selectedTag 
-              ? 'bg-glacier-500 text-slate-950 font-semibold border-glacier-500 shadow-sm shadow-glacier-500/20' 
-              : 'bg-[#11131b] hover:bg-[#161923] text-slate-400 hover:text-slate-200 border-white/[0.08]'"
-          >
-            All Genres
-          </button>
-          <button
-            v-for="t in tags"
-            :key="t.id"
-            @click="handleSelectTag(t.name === selectedTag ? '' : t.name)"
-            class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer border"
-            :class="selectedTag === t.name 
-              ? 'bg-glacier-500/20 text-glacier-300 border-glacier-400/40 shadow-sm' 
-              : 'bg-[#11131b] hover:bg-[#161923] text-slate-400 hover:text-slate-200 border-white/[0.08] hover:border-white/[0.15]'"
-          >
-            <Tag class="w-3 h-3 text-glacier-400/70" />
-            <span>#{{ t.name }}</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.06] text-slate-400 font-mono">{{ t.book_count }}</span>
-          </button>
-        </div>
-
-        <!-- Continue Reading Section (Only when not searching, not filtering by tag/shelf & has in-progress books) -->
-        <div v-if="!isSearching && !selectedTag && !selectedShelf && continueBooks.length > 0" class="mb-10 animate-fade-in">
-          <div class="flex items-center gap-2 mb-3.5">
-            <span class="w-2 h-2 rounded-full bg-glacier-400"></span>
-            <h2 class="text-sm sm:text-base font-bold text-white tracking-tight">
-              Continue Reading
-            </h2>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            <div
-              v-for="item in continueBooks"
-              :key="item.book_id"
-              @click="openReader({ id: item.book_id, title: item.title, format: item.format, file_url: `/api/books/${item.book_id}/file`, cover_url: item.cover_url, has_cover: !!item.cover_url, progress: item.progress })"
-              class="group bg-[#11131b] hover:bg-[#161923] border border-white/[0.08] hover:border-glacier-400/30 rounded-xl p-3 flex items-center gap-3.5 cursor-pointer transition-all hover:shadow-lg hover:shadow-glacier-500/5 hover:-translate-y-0.5"
-            >
-              <!-- Mini cover -->
-              <div class="w-12 h-16 rounded-lg bg-[#090a0f] border border-white/[0.06] overflow-hidden flex-shrink-0 relative">
-                <img
-                  v-if="item.cover_url"
-                  :src="item.cover_url"
-                  :alt="item.title"
-                  class="w-full h-full object-cover"
-                />
-                <div v-else class="w-full h-full flex items-center justify-center text-glacier-400/50">
-                  <BookOpen class="w-5 h-5" />
-                </div>
-              </div>
-
-              <!-- Info & Progress Bar -->
-              <div class="flex-1 min-w-0">
-                <h4 class="text-xs font-semibold text-white group-hover:text-glacier-400 transition-colors truncate">
-                  {{ item.title }}
-                </h4>
-                <p class="text-[11px] text-slate-400 truncate mb-2">
-                  {{ item.authors?.join(', ') || 'Unknown Author' }}
-                </p>
-
-                <div class="flex items-center gap-2">
-                  <div class="flex-1 bg-white/[0.08] h-1.5 rounded-full overflow-hidden">
-                    <div 
-                      class="bg-glacier-400 h-full rounded-full transition-all duration-300"
-                      :style="{ width: `${Math.round(item.progress * 100)}%` }"
-                    ></div>
-                  </div>
-                  <span class="font-mono text-[10px] text-glacier-400 font-semibold">
-                    {{ Math.round(item.progress * 100) }}%
-                  </span>
-                </div>
-              </div>
-
-              <!-- Resume Action Button -->
-              <div class="w-8 h-8 rounded-lg bg-glacier-500/10 group-hover:bg-glacier-500 text-glacier-400 group-hover:text-slate-950 flex items-center justify-center transition-colors flex-shrink-0">
-                <BookOpen class="w-4 h-4" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Loading State -->
-        <div v-if="loading && books.length === 0" class="py-24 flex flex-col items-center justify-center text-slate-500">
-          <Loader2 class="w-8 h-8 text-glacier-400 animate-spin mb-3" />
-          <p class="text-sm">Loading your collection...</p>
-        </div>
-
-        <!-- Empty State -->
-        <div 
-          v-else-if="!loading && books.length === 0" 
-          class="py-24 flex flex-col items-center justify-center text-center px-4"
-        >
-          <div class="w-16 h-16 rounded-2xl bg-[#11131b] border border-white/[0.08] flex items-center justify-center text-slate-500 mb-4">
-            <BookX class="w-8 h-8" />
-          </div>
-          <h3 class="text-base font-semibold text-white mb-1">
-            {{ isSearching ? 'No books found matching your search' : (selectedShelf ? `No books found in shelf "${selectedShelf.name}"` : (selectedTag ? `No books found with tag #${selectedTag}` : 'No books in library yet')) }}
-          </h3>
-          <p class="text-xs text-slate-400 max-w-sm mb-6">
-            {{ isSearching ? 'Try adjusting your search terms or keywords.' : (selectedShelf ? 'Add books to this shelf using the "Add to Shelf" button on book cards or detail view.' : (selectedTag ? 'Try selecting another genre or clear the active filter.' : 'Add .epub or .pdf files into your books directory and click Rescan.')) }}
-          </p>
-          <button
-            v-if="selectedShelf"
-            @click="clearShelfFilter"
-            class="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white text-xs font-medium transition-all cursor-pointer"
-          >
-            Back to All Books
-          </button>
-          <button
-            v-else-if="selectedTag"
-            @click="clearTagFilter"
-            class="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white text-xs font-medium transition-all cursor-pointer"
-          >
-            Clear Genre Filter
-          </button>
-          <button
-            v-else-if="!isSearching && isAdmin"
-            @click="handleScan"
-            :disabled="isScanning"
-            class="px-4 py-2 rounded-xl bg-glacier-500 hover:bg-glacier-400 text-slate-950 text-xs font-semibold shadow-md shadow-glacier-500/20 transition-all cursor-pointer"
-          >
-            Scan Books Now
-          </button>
-        </div>
-
-        <!-- Books Grid -->
-        <div 
-          v-else 
-          class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6"
-        >
-          <BookCard
-            v-for="book in books"
-            :key="book.id"
-            :book="book"
-            @select="selectedBook = book"
-            @read="openReader(book)"
-            @filter-tag="handleSelectTag"
-            @open-shelf="b => shelfSelectBook = b"
+        <!-- Right Side: Content Area with desktop left padding (md:pl-64) -->
+        <div class="flex-1 flex flex-col min-w-0 md:pl-64">
+          <!-- Topbar / Navbar (Streamlined & Clean) -->
+          <Navbar
+            :is-scanning="isScanning"
+            @toggle-sidebar="sidebarOpen = !sidebarOpen"
+            @search="handleSearch"
+            @reset="resetView"
+            @open-upload="showUploadModal = true"
           />
-        </div>
 
-        <!-- Load More / Pagination -->
-        <div v-if="hasMore" class="mt-12 flex justify-center">
-          <button
-            @click="loadMore"
-            :disabled="loading"
-            class="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#11131b] hover:bg-[#161923] border border-white/[0.08] hover:border-glacier-400/30 text-xs font-medium text-slate-300 hover:text-white transition-all disabled:opacity-50 cursor-pointer"
-          >
-            <Loader2 v-if="loading" class="w-4 h-4 animate-spin text-glacier-400" />
-            <span>{{ loading ? 'Loading...' : 'Load More Books' }}</span>
-          </button>
+          <!-- Main Shelf Content -->
+          <main class="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 sm:py-8">
+            <!-- Section Header -->
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <div class="flex items-center gap-3">
+                  <h1 class="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                    {{ 
+                      isSearching 
+                        ? `Search Results for "${searchQuery}"` 
+                        : (selectedShelf 
+                            ? `Shelf: ${selectedShelf.name}` 
+                            : (activeNav === 'continue' 
+                                ? 'Continue Reading' 
+                                : (activeNav === 'tags' 
+                                    ? (selectedTag ? `Category: #${selectedTag}` : 'Categories & Tags') 
+                                    : (selectedTag ? `Category: #${selectedTag}` : 'All Books'))))
+                    }}
+                  </h1>
+
+                  <!-- Active Shelf Clear Badge -->
+                  <button
+                    v-if="selectedShelf"
+                    @click="clearShelfFilter"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-glacier-500/15 text-glacier-300 border border-glacier-400/30 hover:bg-glacier-500/25 transition-colors cursor-pointer"
+                    title="Clear shelf filter"
+                  >
+                    <Bookmark class="w-3 h-3 text-glacier-400" />
+                    <span>{{ selectedShelf.name }}</span>
+                    <X class="w-3 h-3 text-glacier-400" />
+                  </button>
+
+                  <!-- Active Tag Clear Badge -->
+                  <button
+                    v-else-if="selectedTag"
+                    @click="clearTagFilter"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-glacier-500/15 text-glacier-300 border border-glacier-400/30 hover:bg-glacier-500/25 transition-colors cursor-pointer"
+                    title="Clear tag filter"
+                  >
+                    <span>#{{ selectedTag }}</span>
+                    <X class="w-3 h-3 text-glacier-400" />
+                  </button>
+                </div>
+
+                <p class="text-xs text-slate-400 mt-1">
+                  {{ selectedShelf ? `${totalBooks} books in this shelf` : (activeNav === 'continue' ? `${continueBooks.length} books in progress` : `${totalBooks} books available`) }}
+                </p>
+              </div>
+
+              <!-- Scan message banner if active -->
+              <div 
+                v-if="scanMessage" 
+                class="text-xs px-3 py-1.5 rounded-xl bg-glacier-500/10 border border-glacier-500/20 text-glacier-400 flex items-center gap-2 animate-fade-in"
+              >
+                <span class="w-2 h-2 rounded-full bg-glacier-400 animate-pulse"></span>
+                <span>{{ scanMessage }}</span>
+              </div>
+            </div>
+
+            <!-- Tag Filter Pills Bar (When in Tags view or filtering) -->
+            <div v-if="(activeNav === 'tags' || (!isSearching && !selectedShelf && activeNav !== 'continue')) && tags.length > 0" class="mb-6 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+              <button
+                @click="clearTagFilter"
+                class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer border"
+                :class="!selectedTag 
+                  ? 'bg-glacier-500 text-slate-950 font-semibold border-glacier-500 shadow-sm shadow-glacier-500/20' 
+                  : 'bg-[#11131b] hover:bg-[#161923] text-slate-400 hover:text-slate-200 border-white/[0.08]'"
+              >
+                All Genres
+              </button>
+              <button
+                v-for="t in tags"
+                :key="t.id"
+                @click="handleSelectTag(t.name === selectedTag ? '' : t.name)"
+                class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer border"
+                :class="selectedTag === t.name 
+                  ? 'bg-glacier-500/20 text-glacier-300 border-glacier-400/40 shadow-sm' 
+                  : 'bg-[#11131b] hover:bg-[#161923] text-slate-400 hover:text-slate-200 border-white/[0.08] hover:border-white/[0.15]'"
+              >
+                <Tag class="w-3 h-3 text-glacier-400/70" />
+                <span>#{{ t.name }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.06] text-slate-400 font-mono">{{ t.book_count }}</span>
+              </button>
+            </div>
+
+            <!-- Dedicated View: Continue Reading (When activeNav === 'continue') -->
+            <div v-if="activeNav === 'continue'">
+              <!-- Empty Continue Reading -->
+              <div v-if="continueBooks.length === 0" class="py-24 flex flex-col items-center justify-center text-center px-4">
+                <div class="w-16 h-16 rounded-2xl bg-[#11131b] border border-white/[0.08] flex items-center justify-center text-slate-500 mb-4">
+                  <BookOpen class="w-8 h-8 text-glacier-400/50" />
+                </div>
+                <h3 class="text-base font-semibold text-white mb-1">No books in progress</h3>
+                <p class="text-xs text-slate-400 max-w-sm mb-6">
+                  You haven't started reading any books yet. Open any book in the library and start reading to track your progress here.
+                </p>
+                <button
+                  @click="handleSelectNav('books')"
+                  class="px-4 py-2 rounded-xl bg-glacier-500 hover:bg-glacier-400 text-slate-950 text-xs font-semibold shadow-md shadow-glacier-500/20 transition-all cursor-pointer"
+                >
+                  Browse Library
+                </button>
+              </div>
+
+              <!-- Full Grid of in-progress books -->
+              <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div
+                  v-for="item in continueBooks"
+                  :key="item.book_id"
+                  @click="openReader({ id: item.book_id, title: item.title, format: item.format, file_url: `/api/books/${item.book_id}/file`, cover_url: item.cover_url, has_cover: !!item.cover_url, progress: item.progress })"
+                  class="group bg-[#11131b] hover:bg-[#161923] border border-white/[0.08] hover:border-glacier-400/30 rounded-2xl p-4 flex items-center gap-4 cursor-pointer transition-all hover:shadow-xl hover:shadow-glacier-500/5 hover:-translate-y-1"
+                >
+                  <!-- Mini cover -->
+                  <div class="w-16 h-22 rounded-xl bg-[#090a0f] border border-white/[0.06] overflow-hidden flex-shrink-0 relative">
+                    <img
+                      v-if="item.cover_url"
+                      :src="item.cover_url"
+                      :alt="item.title"
+                      class="w-full h-full object-cover"
+                    />
+                    <div v-else class="w-full h-full flex items-center justify-center text-glacier-400/50">
+                      <BookOpen class="w-6 h-6" />
+                    </div>
+                  </div>
+
+                  <!-- Info & Progress Bar -->
+                  <div class="flex-1 min-w-0">
+                    <h4 class="text-sm font-semibold text-white group-hover:text-glacier-400 transition-colors truncate">
+                      {{ item.title }}
+                    </h4>
+                    <p class="text-xs text-slate-400 truncate mb-3">
+                      {{ item.authors?.join(', ') || 'Unknown Author' }}
+                    </p>
+
+                    <div class="flex items-center gap-2.5">
+                      <div class="flex-1 bg-white/[0.08] h-1.5 rounded-full overflow-hidden">
+                        <div 
+                          class="bg-glacier-400 h-full rounded-full transition-all duration-300"
+                          :style="{ width: `${Math.round(item.progress * 100)}%` }"
+                        ></div>
+                      </div>
+                      <span class="font-mono text-xs text-glacier-400 font-semibold">
+                        {{ Math.round(item.progress * 100) }}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- Resume Action Button -->
+                  <div class="w-9 h-9 rounded-xl bg-glacier-500/10 group-hover:bg-glacier-500 text-glacier-400 group-hover:text-slate-950 flex items-center justify-center transition-all flex-shrink-0 shadow-sm">
+                    <BookOpen class="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Standard View: Books Shelf + Preview Sections -->
+            <div v-else>
+              <!-- Continue Reading Preview Section (When browsing all books & has in-progress items) -->
+              <div v-if="!isSearching && !selectedTag && !selectedShelf && continueBooks.length > 0" class="mb-10 animate-fade-in">
+                <div class="flex items-center justify-between mb-3.5">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-glacier-400"></span>
+                    <h2 class="text-sm sm:text-base font-bold text-white tracking-tight">
+                      Continue Reading
+                    </h2>
+                  </div>
+                  <button 
+                    @click="handleSelectNav('continue')"
+                    class="text-xs font-medium text-glacier-400 hover:text-glacier-300 transition-colors cursor-pointer"
+                  >
+                    View all ({{ continueBooks.length }})
+                  </button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                  <div
+                    v-for="item in continueBooks.slice(0, 3)"
+                    :key="item.book_id"
+                    @click="openReader({ id: item.book_id, title: item.title, format: item.format, file_url: `/api/books/${item.book_id}/file`, cover_url: item.cover_url, has_cover: !!item.cover_url, progress: item.progress })"
+                    class="group bg-[#11131b] hover:bg-[#161923] border border-white/[0.08] hover:border-glacier-400/30 rounded-xl p-3 flex items-center gap-3.5 cursor-pointer transition-all hover:shadow-lg hover:shadow-glacier-500/5 hover:-translate-y-0.5"
+                  >
+                    <!-- Mini cover -->
+                    <div class="w-12 h-16 rounded-lg bg-[#090a0f] border border-white/[0.06] overflow-hidden flex-shrink-0 relative">
+                      <img
+                        v-if="item.cover_url"
+                        :src="item.cover_url"
+                        :alt="item.title"
+                        class="w-full h-full object-cover"
+                      />
+                      <div v-else class="w-full h-full flex items-center justify-center text-glacier-400/50">
+                        <BookOpen class="w-5 h-5" />
+                      </div>
+                    </div>
+
+                    <!-- Info & Progress Bar -->
+                    <div class="flex-1 min-w-0">
+                      <h4 class="text-xs font-semibold text-white group-hover:text-glacier-400 transition-colors truncate">
+                        {{ item.title }}
+                      </h4>
+                      <p class="text-[11px] text-slate-400 truncate mb-2">
+                        {{ item.authors?.join(', ') || 'Unknown Author' }}
+                      </p>
+
+                      <div class="flex items-center gap-2">
+                        <div class="flex-1 bg-white/[0.08] h-1.5 rounded-full overflow-hidden">
+                          <div 
+                            class="bg-glacier-400 h-full rounded-full transition-all duration-300"
+                            :style="{ width: `${Math.round(item.progress * 100)}%` }"
+                          ></div>
+                        </div>
+                        <span class="font-mono text-[10px] text-glacier-400 font-semibold">
+                          {{ Math.round(item.progress * 100) }}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Resume Action Button -->
+                    <div class="w-8 h-8 rounded-lg bg-glacier-500/10 group-hover:bg-glacier-500 text-glacier-400 group-hover:text-slate-950 flex items-center justify-center transition-colors flex-shrink-0">
+                      <BookOpen class="w-4 h-4" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Loading State -->
+              <div v-if="loading && books.length === 0" class="py-24 flex flex-col items-center justify-center text-slate-500">
+                <Loader2 class="w-8 h-8 text-glacier-400 animate-spin mb-3" />
+                <p class="text-sm">Loading collection...</p>
+              </div>
+
+              <!-- Empty State -->
+              <div 
+                v-else-if="!loading && books.length === 0" 
+                class="py-24 flex flex-col items-center justify-center text-center px-4"
+              >
+                <div class="w-16 h-16 rounded-2xl bg-[#11131b] border border-white/[0.08] flex items-center justify-center text-slate-500 mb-4">
+                  <BookX class="w-8 h-8" />
+                </div>
+                <h3 class="text-base font-semibold text-white mb-1">
+                  {{ isSearching ? 'No books found matching your search' : (selectedShelf ? `No books found in shelf "${selectedShelf.name}"` : (selectedTag ? `No books found with tag #${selectedTag}` : 'No books in library yet')) }}
+                </h3>
+                <p class="text-xs text-slate-400 max-w-sm mb-6">
+                  {{ isSearching ? 'Try adjusting your search terms or keywords.' : (selectedShelf ? 'Add books to this shelf using the "Add to Shelf" button on book cards or detail view.' : (selectedTag ? 'Try selecting another genre or clear the active filter.' : 'Add .epub or .pdf files into your books directory and click Rescan.')) }}
+                </p>
+                <button
+                  v-if="selectedShelf"
+                  @click="clearShelfFilter"
+                  class="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white text-xs font-medium transition-all cursor-pointer"
+                >
+                  Back to All Books
+                </button>
+                <button
+                  v-else-if="selectedTag"
+                  @click="clearTagFilter"
+                  class="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white text-xs font-medium transition-all cursor-pointer"
+                >
+                  Clear Genre Filter
+                </button>
+                <button
+                  v-else-if="!isSearching && isAdmin"
+                  @click="handleScan"
+                  :disabled="isScanning"
+                  class="px-4 py-2 rounded-xl bg-glacier-500 hover:bg-glacier-400 text-slate-950 text-xs font-semibold shadow-md shadow-glacier-500/20 transition-all cursor-pointer"
+                >
+                  Scan Books Now
+                </button>
+              </div>
+
+              <!-- Books Grid -->
+              <div 
+                v-else 
+                class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6"
+              >
+                <BookCard
+                  v-for="book in books"
+                  :key="book.id"
+                  :book="book"
+                  @select="selectedBook = book"
+                  @read="openReader(book)"
+                  @filter-tag="handleSelectTag"
+                  @open-shelf="b => shelfSelectBook = b"
+                />
+              </div>
+
+              <!-- Load More / Pagination -->
+              <div v-if="hasMore" class="mt-12 flex justify-center">
+                <button
+                  @click="loadMore"
+                  :disabled="loading"
+                  class="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#11131b] hover:bg-[#161923] border border-white/[0.08] hover:border-glacier-400/30 text-xs font-medium text-slate-300 hover:text-white transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  <Loader2 v-if="loading" class="w-4 h-4 animate-spin text-glacier-400" />
+                  <span>{{ loading ? 'Loading...' : 'Load More Books' }}</span>
+                </button>
+              </div>
+            </div>
+          </main>
         </div>
-      </main>
+      </div>
 
       <!-- Book Details Modal -->
       <BookDetailModal
@@ -287,6 +406,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { Loader2, BookX, BookOpen, Tag, X, Bookmark } from 'lucide-vue-next'
+import Sidebar from './components/Sidebar.vue'
 import Navbar from './components/Navbar.vue'
 import BookCard from './components/BookCard.vue'
 import BookDetailModal from './components/BookDetailModal.vue'
@@ -297,10 +417,14 @@ import UsersModal from './components/UsersModal.vue'
 import UploadModal from './components/UploadModal.vue'
 import ShelvesManageModal from './components/ShelvesManageModal.vue'
 import ShelfSelectModal from './components/ShelfSelectModal.vue'
-import { fetchBooks, searchBooks, triggerScan, fetchContinueReading, fetchTags, fetchShelfBooks } from './api/client.js'
+import { fetchBooks, searchBooks, triggerScan, fetchContinueReading, fetchTags, fetchShelfBooks, fetchShelves } from './api/client.js'
 import { useAuth } from './composables/useAuth'
 
 const { isAuthenticated, isAdmin, setupRequired, loading: authLoading, checkAuth, canRead } = useAuth()
+
+const sidebarOpen = ref(false)
+const activeNav = ref('books')
+const shelvesList = ref([])
 
 const books = ref([])
 const continueBooks = ref([])
@@ -325,10 +449,20 @@ const shelfSelectBook = ref(null)
 
 const hasMore = computed(() => books.value.length < totalBooks.value)
 
+async function loadShelves() {
+  if (!isAuthenticated.value) return
+  try {
+    const res = await fetchShelves()
+    shelvesList.value = res || []
+  } catch (err) {
+    console.warn('Failed to load shelves:', err)
+  }
+}
+
 async function loadContinueReading() {
   if (!isAuthenticated.value) return
   try {
-    const items = await fetchContinueReading(6)
+    const items = await fetchContinueReading(12)
     continueBooks.value = items || []
   } catch (err) {
     console.warn('Failed to load continue reading:', err)
@@ -359,7 +493,8 @@ async function loadData(page = 1, append = false) {
       if (page === 1) {
         await Promise.all([
           loadContinueReading(),
-          loadTags()
+          loadTags(),
+          loadShelves()
         ])
       }
     }
@@ -378,10 +513,27 @@ async function loadData(page = 1, append = false) {
   }
 }
 
+function handleSelectNav(nav) {
+  activeNav.value = nav
+  selectedShelf.value = null
+  searchQuery.value = ''
+  if (nav === 'books') {
+    selectedTag.value = ''
+    currentPage.value = 1
+    loadData(1, false)
+  } else if (nav === 'continue') {
+    selectedTag.value = ''
+    loadContinueReading()
+  } else if (nav === 'tags') {
+    loadTags()
+  }
+}
+
 function handleSelectShelf(shelf) {
   selectedShelf.value = shelf
   selectedTag.value = ''
   searchQuery.value = ''
+  activeNav.value = 'shelf'
   showShelvesModal.value = false
   currentPage.value = 1
   loadData(1, false)
@@ -389,11 +541,13 @@ function handleSelectShelf(shelf) {
 
 function clearShelfFilter() {
   selectedShelf.value = null
+  activeNav.value = 'books'
   currentPage.value = 1
   loadData(1, false)
 }
 
 function onShelfUpdated() {
+  loadShelves()
   if (selectedShelf.value) {
     loadData(1, false)
   }
@@ -402,6 +556,7 @@ function onShelfUpdated() {
 function handleSelectTag(tag) {
   selectedTag.value = tag
   selectedShelf.value = null
+  activeNav.value = 'tags'
   searchQuery.value = ''
   currentPage.value = 1
   loadData(1, false)
@@ -418,6 +573,7 @@ function handleSearch(query) {
   searchQuery.value = query
   selectedTag.value = ''
   selectedShelf.value = null
+  activeNav.value = 'books'
   currentPage.value = 1
   loadData(1, false)
 }
@@ -426,6 +582,7 @@ function resetView() {
   searchQuery.value = ''
   selectedTag.value = ''
   selectedShelf.value = null
+  activeNav.value = 'books'
   selectedBook.value = null
   readingBook.value = null
   loadData(1, false)
@@ -448,6 +605,7 @@ async function handleScan() {
     setTimeout(async () => {
       await loadData(1, false)
       await loadTags()
+      await loadShelves()
       isScanning.value = false
       scanMessage.value = 'Library updated!'
       setTimeout(() => {
@@ -484,11 +642,13 @@ function onProgressUpdated({ bookId, progress, isFinished }) {
 function onAuthSuccess() {
   loadData(1, false)
   loadTags()
+  loadShelves()
 }
 
 function onBooksUploaded() {
   loadData(1, false)
   loadTags()
+  loadShelves()
 }
 
 function onBookUpdated(updatedBook) {
@@ -514,6 +674,7 @@ function onBookUpdated(updatedBook) {
   }
 
   loadTags()
+  loadShelves()
 }
 
 function onBookDeleted(bookId) {
@@ -524,13 +685,18 @@ function onBookDeleted(bookId) {
   }
   selectedBook.value = null
   loadTags()
+  loadShelves()
 }
 
 watch(isAuthenticated, (newVal) => {
   if (newVal) {
     loadData(1, false)
     loadTags()
+    loadShelves()
   } else {
+    sidebarOpen.value = false
+    activeNav.value = 'books'
+    shelvesList.value = []
     books.value = []
     continueBooks.value = []
     tags.value = []
@@ -551,6 +717,7 @@ onMounted(async () => {
   if (isAuthenticated.value) {
     loadData(1, false)
     loadTags()
+    loadShelves()
   }
 })
 </script>

@@ -58,6 +58,12 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
 - [x] **Kệ "Tất cả sách"**: Hiển thị dạng lưới thẻ bìa sách trực quan kèm phân trang / tải lướt.
 - [x] **Kệ "Tiếp tục đọc" (Continue Reading)**: Hiển thị các sách user đang đọc dở kèm thanh tiến độ %.
 - [x] **Tìm kiếm toàn văn (FTS5)**: Tìm kiếm siêu tốc theo Tiêu đề, Tác giả, Series thông qua SQLite FTS5.
+- [x] **Sidebar Navigation Drawer (Kiểu Calibre-Web)**:
+  - [x] Chuyển đổi thanh điều hướng từ Topbar quá tải sang Sidebar Drawer hiện đại, khoa học.
+  - [x] Nhóm BROWSE: All Books, Continue Reading, Categories / Tags, Series, Authors.
+  - [x] Nhóm SHELVES: Danh sách kệ cá nhân/công khai của user kèm số lượng sách, nút `+ Create a Shelf` và quản lý kệ.
+  - [x] Nhóm MANAGEMENT: Upload sách (`can_upload`), Quản lý Users (Admin), Quét lại thư viện (Admin), Đăng xuất.
+  - [x] Thiết kế Responsive: Cố định trang nhã bên trái trên Desktop (`md:w-64`), tự động chuyển thành Drawer trượt có backdrop-blur mờ trên Mobile.
 - [x] **Lọc & Sắp xếp cơ bản**: Sắp xếp theo Tên sách, Tác giả, Thời gian thêm mới.
 - [x] **Xem chi tiết sách (Book Detail Modal)**: Hiển thị bìa, mô tả, nhà xuất bản, ngày xuất bản, định dạng file, kích thước.
 - [x] **Tải sách về máy (Direct Download)**: Nút tải file EPUB/PDF gốc về máy cá nhân.
