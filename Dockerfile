@@ -42,8 +42,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/lyostar ./cmd/lyo
 # ==============================================================================
 FROM alpine:3.20
 
-# Install SSL certificates, timezone data, and network utilities
-RUN apk add --no-cache ca-certificates tzdata wget
+# Install SSL certificates, timezone data, network utilities, and su-exec
+RUN apk add --no-cache ca-certificates tzdata wget su-exec
 
 # Create non-root user and group
 RUN addgroup -g 1000 lyostar && \
@@ -57,11 +57,10 @@ RUN mkdir -p /books /data && \
     ln -s /books /app/books && \
     chown -R lyostar:lyostar /books /data /app
 
-# Copy single binary from backend-builder
+# Copy entrypoint script and single binary
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 COPY --from=backend-builder --chown=lyostar:lyostar /app/lyostar /app/lyostar
-
-# Switch to non-root user for security
-USER lyostar
 
 # Storage Volumes & Port Contract
 VOLUME ["/books", "/data"]
@@ -71,5 +70,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD wget -q -O /dev/null http://localhost:8080/api/health || exit 1
 
-ENTRYPOINT ["/app/lyostar"]
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["-books=/books", "-data=/data", "-port=8080"]
