@@ -74,7 +74,7 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
 - [x] **Tải sách về máy (Direct Download)**: Nút tải file EPUB/PDF gốc về máy cá nhân.
 - [x] **Kệ sách tùy chỉnh của User (Custom Shelves / Collections)**:
   - [x] Cho phép người dùng tự tạo, chỉnh sửa, xóa kệ sách cá nhân (ví dụ: *"Sách yêu thích"*, *"Muốn đọc"*, *"Học kỹ thuật"*).
-  - [x] Thêm / bớt sách vào kệ sách nhanh chóng qua hộp thoại 1-click checkbox modal (`ShelfSelectModal`) tương tự YouTube playlist & Calibre-Web.
+  - [x] Thêm / bớt sách vào kệ sách qua hộp thoại `ShelfSelectModal` có 2 nút Cancel & Apply, chọn/bỏ chọn checkbox cục bộ mượt mà và lưu hàng loạt (batch update) kèm thông báo Snackbar xác nhận thành công.
   - [x] Tùy chọn kệ sách công khai (Public) hoặc riêng tư (Private).
   - [x] Modal quản lý kệ sách (`ShelvesManageModal`) xem danh sách, số lượng sách (`book_count`), huy hiệu sở hữu (`is_owner`).
   - [x] Lọc thư viện theo kệ sách đang chọn trên giao diện chính, nút huy hiệu xóa bộ lọc nhanh để quay lại toàn bộ thư viện.

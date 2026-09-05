@@ -400,13 +400,43 @@
         @updated="onShelfUpdated"
       />
     </template>
+
+    <!-- Global Floating Toast / Snackbar Notification -->
+    <Transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="transform translate-y-4 opacity-0 scale-95"
+      enter-to-class="transform translate-y-0 opacity-100 scale-100"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="transform translate-y-0 opacity-100 scale-100"
+      leave-to-class="transform translate-y-4 opacity-0 scale-95"
+    >
+      <div 
+        v-if="toast.visible" 
+        class="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 rounded-2xl bg-[#11131b]/95 backdrop-blur-md border border-white/[0.12] shadow-2xl shadow-black/80 text-white text-xs font-medium"
+      >
+        <div 
+          class="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+          :class="toast.type === 'error' ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'"
+        >
+          <AlertCircle v-if="toast.type === 'error'" class="w-3.5 h-3.5" />
+          <Check v-else class="w-3.5 h-3.5 stroke-[2.5]" />
+        </div>
+        <span class="max-w-xs truncate">{{ toast.message }}</span>
+        <button 
+          @click="hideToast" 
+          class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/[0.05] transition-colors cursor-pointer"
+        >
+          <X class="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Loader2, BookX, BookOpen, Tag, X, Bookmark } from 'lucide-vue-next'
+import { Loader2, BookX, BookOpen, Tag, X, Bookmark, Check, AlertCircle } from 'lucide-vue-next'
 import Sidebar from './components/Sidebar.vue'
 import Navbar from './components/Navbar.vue'
 import BookCard from './components/BookCard.vue'
@@ -429,10 +459,12 @@ import {
   fetchBookDetail 
 } from './api/client.js'
 import { useAuth } from './composables/useAuth'
+import { useToast } from './composables/useToast'
 
 const router = useRouter()
 const route = useRoute()
 const { isAuthenticated, isAdmin, setupRequired, loading: authLoading, checkAuth, canRead } = useAuth()
+const { toast, hideToast } = useToast()
 
 const sidebarOpen = ref(false)
 const activeNav = ref('books')
