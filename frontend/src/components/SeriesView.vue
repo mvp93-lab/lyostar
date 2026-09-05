@@ -174,7 +174,6 @@ const filteredSeries = computed(() => {
 
 function selectSeries(seriesName) {
   emit('select-series', seriesName)
-  router.push(`/series/${encodeURIComponent(seriesName)}`)
 }
 
 function goBack() {

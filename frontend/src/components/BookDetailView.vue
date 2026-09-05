@@ -441,16 +441,60 @@
               </div>
             </div>
 
-            <!-- Series and Index Grid -->
+            <!-- Series and Index Grid with Autocomplete -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div class="sm:col-span-2">
+              <div class="sm:col-span-2 relative">
                 <label class="block text-slate-400 font-semibold mb-1">Series Name</label>
-                <input
-                  v-model="editForm.series"
-                  type="text"
-                  placeholder="e.g. The Dune Chronicles"
-                  class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-white/[0.1] text-white text-xs placeholder-slate-500 focus:outline-none focus:border-glacier-400 focus:ring-1 focus:ring-glacier-400 transition-colors"
-                />
+                <div class="relative">
+                  <input
+                    ref="seriesInputRef"
+                    v-model="editForm.series"
+                    type="text"
+                    placeholder="e.g. The Dune Chronicles"
+                    @focus="showSeriesDropdown = true"
+                    @input="showSeriesDropdown = true; selectedSeriesIndex = -1"
+                    @blur="handleSeriesBlur"
+                    @keydown="handleSeriesKeyDown"
+                    class="w-full pl-3.5 pr-8 py-2.5 rounded-xl bg-slate-900/80 border border-white/[0.1] text-white text-xs placeholder-slate-500 focus:outline-none focus:border-glacier-400 focus:ring-1 focus:ring-glacier-400 transition-colors"
+                  />
+                  <!-- Clear Series Button -->
+                  <button
+                    v-if="editForm.series"
+                    type="button"
+                    @mousedown.prevent="clearSeries"
+                    class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5 rounded transition-colors"
+                    title="Clear series"
+                  >
+                    <X class="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <!-- Autocomplete Suggestions Dropdown -->
+                <div
+                  v-if="showSeriesDropdown && filteredSeriesSuggestions.length > 0"
+                  class="absolute left-0 right-0 top-full mt-1.5 z-30 bg-[#161923] border border-white/[0.12] rounded-xl shadow-2xl shadow-black/80 max-h-48 overflow-y-auto py-1 backdrop-blur-md"
+                >
+                  <div class="px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-white/[0.06] flex items-center justify-between">
+                    <span>Existing Series</span>
+                    <span>{{ filteredSeriesSuggestions.length }} matches</span>
+                  </div>
+                  <button
+                    v-for="(s, idx) in filteredSeriesSuggestions"
+                    :key="s.name"
+                    type="button"
+                    @mousedown.prevent="selectSeries(s)"
+                    class="w-full px-3 py-2 flex items-center justify-between text-left text-xs transition-colors cursor-pointer"
+                    :class="selectedSeriesIndex === idx ? 'bg-glacier-500/20 text-glacier-300' : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'"
+                  >
+                    <div class="flex items-center gap-2 min-w-0">
+                      <Layers class="w-3.5 h-3.5 text-glacier-400/80 flex-shrink-0" />
+                      <span class="font-medium truncate">{{ s.name }}</span>
+                    </div>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.06] text-slate-400 font-mono flex-shrink-0 ml-2">
+                      {{ s.book_count }} books
+                    </span>
+                  </button>
+                </div>
               </div>
               <div>
                 <label class="block text-slate-400 font-semibold mb-1">Series #</label>
@@ -599,7 +643,8 @@ import {
   Tag, 
   Bookmark, 
   Star, 
-  X 
+  X,
+  Layers
 } from 'lucide-vue-next'
 import { useAuth } from '../composables/useAuth'
 import { 
@@ -607,6 +652,8 @@ import {
   updateBookMetadata, 
   deleteBook, 
   fetchTags,
+  fetchSeries,
+  fetchBooks,
   setBookRating,
   deleteBookRating 
 } from '../api/client'
@@ -620,7 +667,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['read', 'filter-tag', 'filter-author', 'filter-series', 'shelf-updated', 'deleted'])
+const emit = defineEmits(['read', 'filter-tag', 'filter-author', 'filter-series', 'shelf-updated', 'metadata-updated', 'deleted'])
 
 const router = useRouter()
 const route = useRoute()
@@ -648,6 +695,11 @@ const showTagDropdown = ref(false)
 const selectedTagIndex = ref(-1)
 const tagInputRef = ref(null)
 
+const availableSeries = ref([])
+const showSeriesDropdown = ref(false)
+const selectedSeriesIndex = ref(-1)
+const seriesInputRef = ref(null)
+
 const editForm = reactive({
   title: '',
   authorsStr: '',
@@ -674,6 +726,13 @@ const filteredTagSuggestions = computed(() => {
     .slice(0, 8)
 })
 
+const filteredSeriesSuggestions = computed(() => {
+  const query = (editForm.series || '').trim().toLowerCase()
+  return availableSeries.value
+    .filter(s => s.name && (!query || s.name.toLowerCase().includes(query)))
+    .slice(0, 8)
+})
+
 async function loadBookData() {
   loading.value = true
   error.value = ''
@@ -697,6 +756,15 @@ async function loadAvailableTags() {
     availableTags.value = tags || []
   } catch (err) {
     console.warn('Failed to load tags:', err)
+  }
+}
+
+async function loadAvailableSeries() {
+  try {
+    const list = await fetchSeries()
+    availableSeries.value = list || []
+  } catch (err) {
+    console.warn('Failed to load series:', err)
   }
 }
 
@@ -774,6 +842,20 @@ function formatDate(dateStr) {
   }
 }
 
+function formatLanguage(code) {
+  if (!code) return ''
+  const upper = code.toUpperCase()
+  const map = {
+    'VI': 'Tiếng Việt',
+    'EN': 'English',
+    'FR': 'Français',
+    'DE': 'Deutsch',
+    'JA': '日本語',
+    'ZH': '中文'
+  }
+  return map[upper] || upper
+}
+
 function cleanDescription(desc) {
   if (!desc) return ''
   return desc.replace(/<[^>]*>?/gm, '').trim()
@@ -795,11 +877,74 @@ function startEditing() {
   editForm.description = book.value.description || ''
 
   loadAvailableTags()
+  loadAvailableSeries()
 }
 
 function cancelEditing() {
   isEditing.value = false
   editError.value = ''
+  showSeriesDropdown.value = false
+}
+
+function clearSeries() {
+  editForm.series = ''
+  editForm.series_index = null
+  showSeriesDropdown.value = false
+}
+
+async function selectSeries(s) {
+  editForm.series = s.name
+  showSeriesDropdown.value = false
+  selectedSeriesIndex.value = -1
+
+  // Intelligently suggest next index if series_index is currently not set
+  if (!editForm.series_index) {
+    try {
+      const res = await fetchBooks({ series: s.name, limit: 100 })
+      const seriesBooks = res.items || res.books || []
+      let maxIdx = 0
+      for (const b of seriesBooks) {
+        if (b.id !== book.value?.id && b.series_index && b.series_index > maxIdx) {
+          maxIdx = b.series_index
+        }
+      }
+      editForm.series_index = Math.floor(maxIdx) + 1
+    } catch (e) {
+      console.warn('Could not calculate next series index:', e)
+      editForm.series_index = 1
+    }
+  }
+}
+
+function handleSeriesBlur() {
+  setTimeout(() => {
+    showSeriesDropdown.value = false
+  }, 200)
+}
+
+function handleSeriesKeyDown(e) {
+  if (e.key === 'Enter') {
+    if (selectedSeriesIndex.value >= 0 && selectedSeriesIndex.value < filteredSeriesSuggestions.value.length) {
+      e.preventDefault()
+      selectSeries(filteredSeriesSuggestions.value[selectedSeriesIndex.value])
+    } else {
+      showSeriesDropdown.value = false
+    }
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    showSeriesDropdown.value = true
+    if (filteredSeriesSuggestions.value.length > 0) {
+      selectedSeriesIndex.value = (selectedSeriesIndex.value + 1) % filteredSeriesSuggestions.value.length
+    }
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    showSeriesDropdown.value = true
+    if (filteredSeriesSuggestions.value.length > 0) {
+      selectedSeriesIndex.value = (selectedSeriesIndex.value - 1 + filteredSeriesSuggestions.value.length) % filteredSeriesSuggestions.value.length
+    }
+  } else if (e.key === 'Escape') {
+    showSeriesDropdown.value = false
+  }
 }
 
 function focusTagInput() {
@@ -891,6 +1036,9 @@ async function handleSaveMetadata() {
     book.value = updated
     isEditing.value = false
     showToast('Metadata updated successfully', 'success')
+    emit('metadata-updated', updated)
+    // Reload series suggestions list for future edits
+    loadAvailableSeries()
   } catch (err) {
     console.error('Failed to save metadata:', err)
     editError.value = err.message || 'Failed to update metadata'

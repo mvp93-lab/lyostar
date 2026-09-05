@@ -63,6 +63,7 @@
             @filter-author="handleSelectAuthor"
             @filter-series="handleSelectSeries"
             @shelf-updated="onShelfUpdated"
+            @metadata-updated="onMetadataUpdated"
             @deleted="onBookDeleted"
           />
 
@@ -78,6 +79,15 @@
             v-else-if="route.name === 'series'"
             :initial-series="seriesList"
             @select-series="handleSelectSeries"
+          />
+
+          <!-- Dedicated Series Detail Page (Calibre-Web Style) -->
+          <SeriesDetailView
+            v-else-if="route.name === 'series-books'"
+            :series-name="route.params.series ? String(route.params.series) : ''"
+            @read="openReader"
+            @filter-author="handleSelectAuthor"
+            @shelf-updated="onShelfUpdated"
           />
 
           <!-- Main Shelf Content -->
@@ -525,6 +535,7 @@ import BookCard from './components/BookCard.vue'
 import BookDetailView from './components/BookDetailView.vue'
 import AuthorsView from './components/AuthorsView.vue'
 import SeriesView from './components/SeriesView.vue'
+import SeriesDetailView from './components/SeriesDetailView.vue'
 import ReaderView from './components/ReaderView.vue'
 import SetupView from './components/SetupView.vue'
 import LoginView from './components/LoginView.vue'
@@ -752,7 +763,7 @@ async function syncFromRoute(r = route) {
     selectedAuthor.value = ''
     selectedSeries.value = decodeURIComponent(params.series || '')
     searchQuery.value = ''
-    await loadData(1, false)
+    // Rendered by SeriesDetailView component
   } else if (name === 'shelf-books') {
     activeNav.value = 'shelf'
     const shelfId = Number(params.id)
@@ -999,6 +1010,13 @@ function onBookUpdated(updatedBook) {
   loadAuthors()
   loadSeries()
   loadShelves()
+}
+
+function onMetadataUpdated() {
+  loadTags()
+  loadAuthors()
+  loadSeries()
+  loadBooks()
 }
 
 function onBookDeleted(bookId) {

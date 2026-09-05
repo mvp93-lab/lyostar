@@ -118,7 +118,7 @@ func (q *Queries) CountBooksByFormat(ctx context.Context, format string) (int64,
 const countBooksBySeries = `-- name: CountBooksBySeries :one
 SELECT COUNT(b.id)
 FROM books b
-WHERE b.series = ?
+WHERE b.series = ? COLLATE NOCASE
 `
 
 func (q *Queries) CountBooksBySeries(ctx context.Context, series string) (int64, error) {
@@ -1419,7 +1419,7 @@ SELECT
     coalesce(rp.is_finished, 0) as user_is_finished
 FROM books b
 LEFT JOIN reading_progress rp ON b.id = rp.book_id AND rp.user_id = ?
-WHERE b.series = ?
+WHERE b.series = ? COLLATE NOCASE
 ORDER BY b.series_index ASC, b.id ASC
 LIMIT ? OFFSET ?
 `
@@ -1984,7 +1984,7 @@ const listSeriesWithBookCount = `-- name: ListSeriesWithBookCount :many
 SELECT b.series, COUNT(b.id) as book_count
 FROM books b
 WHERE b.series != ''
-GROUP BY b.series
+GROUP BY b.series COLLATE NOCASE
 ORDER BY b.series COLLATE NOCASE ASC
 `
 

@@ -103,8 +103,13 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
   - [x] Sắp xếp chính xác theo tập số (`series_index ASC, id ASC`) để người dùng theo dõi theo trình tự xuất bản.
   - [x] Thêm mục **Series** trên Sidebar BROWSE kèm badge tổng số bộ sách (`seriesCount`).
   - [x] Endpoint `GET /api/series` trả về danh sách series kèm số lượng sách (`book_count`).
-  - [x] Chuyên trang danh mục bộ sách (`SeriesView.vue` tại route `/series` và `/series/:series`) với tìm kiếm tức thì, huy hiệu số tập, và danh sách các tập sách theo thứ tự.
-  - [x] Huy hiệu Series badge trên thẻ sách (`BookCard.vue`) và chuyên trang chi tiết (`BookDetailView.vue`), click để chuyển nhanh vào lọc theo bộ sách.
+  - [x] Chuyên trang danh mục bộ sách (`SeriesView.vue` tại route `/series`) với tìm kiếm tức thì, huy hiệu số tập.
+  - [x] Chuyên trang **Chi tiết Bộ sách Chuyên biệt (`SeriesDetailView.vue` tại `/series/:series`)**:
+    - Hero Header tổng quan bộ sách, tác giả chính, định dạng, và tổng số tập.
+    - **Thanh tiến độ toàn bộ Series (Series Reading Progress)**: Theo dõi số tập đã đọc xong / tổng số tập kèm thanh phần trăm (%) và nút đọc tiếp tập tiếp theo nhanh chóng.
+    - **2 chế độ xem linh hoạt**: Chế độ **Lưới thẻ có số tập nổi bật (Numbered Grid)** và chế độ **Dòng thời gian tuần tự (Sequential Timeline)** kèm trích dẫn tóm tắt nội dung từng tập.
+  - [x] Huy hiệu Series badge trên thẻ sách (`BookCard.vue`) và chuyên trang chi tiết (`BookDetailView.vue`), click để chuyển nhanh vào xem chuyên trang bộ sách.
+  - [x] Tích hợp **Series Autocomplete & Smart Next Index** trong trình biên tập Metadata (`BookDetailView.vue`): Gợi ý tức thì các bộ sách đã có kèm số lượng sách, hỗ trợ phím mũi tên `↑` `↓` `Enter` và tự động tính toán đề xuất tập tiếp theo (`#next`).
 - [x] **Hệ thống Đánh giá sao (Rating System - 1 đến 5 sao)**:
   - [x] Bảng SQLite `book_ratings` lưu trữ đánh giá sao riêng biệt cho từng người dùng (`user_id, book_id, rating CHECK (1..5)`).
   - [x] Widget tương tác 5 sao trực quan trên chuyên trang chi tiết (`BookDetailView.vue`), hỗ trợ hiệu ứng hover động, chấm sao tức thì và nút xóa đánh giá (Clear rating).
