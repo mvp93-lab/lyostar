@@ -17,6 +17,7 @@ import (
 type Metadata struct {
 	Title       string
 	Authors     []string
+	Tags        []string
 	Description string
 	Publisher   string
 	Language    string
@@ -45,6 +46,7 @@ type opfPackage struct {
 	Metadata struct {
 		Titles       []string `xml:"title"`
 		Creators     []string `xml:"creator"`
+		Subjects     []string `xml:"subject"`
 		Descriptions []string `xml:"description"`
 		Publishers   []string `xml:"publisher"`
 		Languages    []string `xml:"language"`
@@ -167,6 +169,21 @@ func extractMetadata(pkg *opfPackage) Metadata {
 		trimmed := strings.TrimSpace(a)
 		if trimmed != "" {
 			m.Authors = append(m.Authors, trimmed)
+		}
+	}
+
+	// Tags / Subjects (<dc:subject>)
+	seenTags := make(map[string]bool)
+	for _, s := range pkg.Metadata.Subjects {
+		parts := strings.FieldsFunc(s, func(r rune) bool {
+			return r == ',' || r == ';'
+		})
+		for _, part := range parts {
+			trimmed := strings.TrimSpace(part)
+			if trimmed != "" && !seenTags[strings.ToLower(trimmed)] {
+				seenTags[strings.ToLower(trimmed)] = true
+				m.Tags = append(m.Tags, trimmed)
+			}
 		}
 	}
 

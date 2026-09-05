@@ -38,6 +38,11 @@ type BookAuthor struct {
 	Role     string `json:"role"`
 }
 
+type BookTag struct {
+	BookID int64 `json:"book_id"`
+	TagID  int64 `json:"tag_id"`
+}
+
 type BooksFt struct {
 	Fulltext    string `json:"fulltext"`
 	Title       string `json:"title"`
@@ -60,6 +65,12 @@ type Session struct {
 	Token     string    `json:"token"`
 	UserID    int64     `json:"user_id"`
 	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Tag struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

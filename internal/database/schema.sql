@@ -31,9 +31,24 @@ CREATE TABLE IF NOT EXISTS book_authors (
     FOREIGN KEY (author_id) REFERENCES authors(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS book_tags (
+    book_id INTEGER NOT NULL,
+    tag_id INTEGER NOT NULL,
+    PRIMARY KEY (book_id, tag_id),
+    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_books_sha256 ON books(file_sha256);
 CREATE INDEX IF NOT EXISTS idx_books_file_path ON books(file_path);
 CREATE INDEX IF NOT EXISTS idx_book_authors_author_id ON book_authors(author_id);
+CREATE INDEX IF NOT EXISTS idx_book_tags_tag_id ON book_tags(tag_id);
 
 -- FTS5 virtual table for full-text search
 CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(

@@ -35,6 +35,7 @@ endobj
   /Title (Sample PDF Book)
   /Author (Jane Doe)
   /Subject (A test book for unit tests)
+  /Keywords (Go, Programming, Backend)
   /CreationDate (D:20230515120000Z)
 >>
 endobj
@@ -56,6 +57,9 @@ trailer
 	}
 	if len(info.Metadata.Authors) == 0 || info.Metadata.Authors[0] != "Jane Doe" {
 		t.Errorf("expected Author 'Jane Doe', got '%v'", info.Metadata.Authors)
+	}
+	if len(info.Metadata.Tags) != 3 || info.Metadata.Tags[0] != "Go" || info.Metadata.Tags[1] != "Programming" || info.Metadata.Tags[2] != "Backend" {
+		t.Errorf("expected 3 tags [Go, Programming, Backend], got '%v'", info.Metadata.Tags)
 	}
 	if info.Metadata.Description != "A test book for unit tests" {
 		t.Errorf("expected Description 'A test book for unit tests', got '%s'", info.Metadata.Description)

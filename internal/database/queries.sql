@@ -82,6 +82,43 @@ JOIN book_authors ba ON a.id = ba.author_id
 WHERE ba.book_id = ?
 ORDER BY a.name ASC;
 
+-- name: CreateTag :one
+INSERT INTO tags (name)
+VALUES (?)
+ON CONFLICT(name) DO UPDATE SET name=excluded.name
+RETURNING *;
+
+-- name: GetTagByID :one
+SELECT * FROM tags
+WHERE id = ? LIMIT 1;
+
+-- name: GetTagByName :one
+SELECT * FROM tags
+WHERE name = ? LIMIT 1;
+
+-- name: ListTags :many
+SELECT t.id, t.name, t.created_at, COUNT(bt.book_id) as book_count
+FROM tags t
+LEFT JOIN book_tags bt ON t.id = bt.tag_id
+GROUP BY t.id
+ORDER BY book_count DESC, t.name ASC;
+
+-- name: AddBookTag :exec
+INSERT INTO book_tags (book_id, tag_id)
+VALUES (?, ?)
+ON CONFLICT(book_id, tag_id) DO NOTHING;
+
+-- name: ClearBookTags :exec
+DELETE FROM book_tags
+WHERE book_id = ?;
+
+-- name: GetTagsForBook :many
+SELECT t.*
+FROM tags t
+JOIN book_tags bt ON t.id = bt.tag_id
+WHERE bt.book_id = ?
+ORDER BY t.name ASC;
+
 -- name: ListBooksWithAuthors :many
 SELECT
     b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
@@ -233,12 +270,11 @@ SELECT
     b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
     b.description, b.publisher, b.language, b.pub_date, b.series,
     b.series_index, b.cover_path, b.created_at, b.updated_at,
-    coalesce(GROUP_CONCAT(a.name, ', '), '') as author_names,
+    coalesce((SELECT GROUP_CONCAT(a.name, ', ') FROM book_authors ba JOIN authors a ON ba.author_id = a.id WHERE ba.book_id = b.id), '') as author_names,
+    coalesce((SELECT GROUP_CONCAT(t.name, ', ') FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = b.id), '') as tag_names,
     coalesce(rp.progress, 0.0) as user_progress,
     coalesce(rp.is_finished, 0) as user_is_finished
 FROM books b
-LEFT JOIN book_authors ba ON b.id = ba.book_id
-LEFT JOIN authors a ON ba.author_id = a.id
 LEFT JOIN reading_progress rp ON b.id = rp.book_id AND rp.user_id = ?
 GROUP BY b.id
 ORDER BY b.id DESC
@@ -249,16 +285,40 @@ SELECT
     b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
     b.description, b.publisher, b.language, b.pub_date, b.series,
     b.series_index, b.cover_path, b.created_at, b.updated_at,
-    coalesce(GROUP_CONCAT(a.name, ', '), '') as author_names,
+    coalesce((SELECT GROUP_CONCAT(a.name, ', ') FROM book_authors ba JOIN authors a ON ba.author_id = a.id WHERE ba.book_id = b.id), '') as author_names,
+    coalesce((SELECT GROUP_CONCAT(t.name, ', ') FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = b.id), '') as tag_names,
     coalesce(rp.progress, 0.0) as user_progress,
     coalesce(rp.is_finished, 0) as user_is_finished
 FROM books b
 JOIN books_fts ON b.id = books_fts.rowid
-LEFT JOIN book_authors ba ON b.id = ba.book_id
-LEFT JOIN authors a ON ba.author_id = a.id
 LEFT JOIN reading_progress rp ON b.id = rp.book_id AND rp.user_id = ?
 WHERE books_fts.fulltext MATCH ?
 GROUP BY b.id
 ORDER BY books_fts.rank
 LIMIT ? OFFSET ?;
+
+-- name: ListBooksByTagWithAuthorsAndProgress :many
+SELECT
+    b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
+    b.description, b.publisher, b.language, b.pub_date, b.series,
+    b.series_index, b.cover_path, b.created_at, b.updated_at,
+    coalesce((SELECT GROUP_CONCAT(a.name, ', ') FROM book_authors ba JOIN authors a ON ba.author_id = a.id WHERE ba.book_id = b.id), '') as author_names,
+    coalesce((SELECT GROUP_CONCAT(t.name, ', ') FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = b.id), '') as tag_names,
+    coalesce(rp.progress, 0.0) as user_progress,
+    coalesce(rp.is_finished, 0) as user_is_finished
+FROM books b
+JOIN book_tags bt ON b.id = bt.book_id
+JOIN tags t ON bt.tag_id = t.id
+LEFT JOIN reading_progress rp ON b.id = rp.book_id AND rp.user_id = ?
+WHERE t.name = ?
+GROUP BY b.id
+ORDER BY b.id DESC
+LIMIT ? OFFSET ?;
+
+-- name: CountBooksByTag :one
+SELECT COUNT(DISTINCT b.id)
+FROM books b
+JOIN book_tags bt ON b.id = bt.book_id
+JOIN tags t ON bt.tag_id = t.id
+WHERE t.name = ?;
 

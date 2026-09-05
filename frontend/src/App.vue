@@ -35,9 +35,20 @@
         <!-- Section Header -->
         <div class="flex items-center justify-between mb-6">
           <div>
-            <h1 class="text-xl sm:text-2xl font-bold text-white tracking-tight">
-              {{ isSearching ? `Search Results for "${searchQuery}"` : 'Library Shelf' }}
-            </h1>
+            <div class="flex items-center gap-3">
+              <h1 class="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                {{ isSearching ? `Search Results for "${searchQuery}"` : (selectedTag ? `Category: #${selectedTag}` : 'Library Shelf') }}
+              </h1>
+              <button
+                v-if="selectedTag"
+                @click="clearTagFilter"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-glacier-500/15 text-glacier-300 border border-glacier-400/30 hover:bg-glacier-500/25 transition-colors cursor-pointer"
+                title="Clear tag filter"
+              >
+                <span>#{{ selectedTag }}</span>
+                <X class="w-3 h-3 text-glacier-400" />
+              </button>
+            </div>
             <p class="text-xs text-slate-400 mt-1">
               {{ totalBooks }} {{ totalBooks === 1 ? 'book' : 'books' }} available
             </p>
@@ -53,8 +64,34 @@
           </div>
         </div>
 
-        <!-- Continue Reading Section (Only when not searching & has in-progress books) -->
-        <div v-if="!isSearching && continueBooks.length > 0" class="mb-10 animate-fade-in">
+        <!-- Tag Filter Pills Bar -->
+        <div v-if="!isSearching && tags.length > 0" class="mb-6 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+          <button
+            @click="clearTagFilter"
+            class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer border"
+            :class="!selectedTag 
+              ? 'bg-glacier-500 text-slate-950 font-semibold border-glacier-500 shadow-sm shadow-glacier-500/20' 
+              : 'bg-[#11131b] hover:bg-[#161923] text-slate-400 hover:text-slate-200 border-white/[0.08]'"
+          >
+            All Genres
+          </button>
+          <button
+            v-for="t in tags"
+            :key="t.id"
+            @click="handleSelectTag(t.name === selectedTag ? '' : t.name)"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer border"
+            :class="selectedTag === t.name 
+              ? 'bg-glacier-500/20 text-glacier-300 border-glacier-400/40 shadow-sm' 
+              : 'bg-[#11131b] hover:bg-[#161923] text-slate-400 hover:text-slate-200 border-white/[0.08] hover:border-white/[0.15]'"
+          >
+            <Tag class="w-3 h-3 text-glacier-400/70" />
+            <span>#{{ t.name }}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.06] text-slate-400 font-mono">{{ t.book_count }}</span>
+          </button>
+        </div>
+
+        <!-- Continue Reading Section (Only when not searching, not filtering by tag & has in-progress books) -->
+        <div v-if="!isSearching && !selectedTag && continueBooks.length > 0" class="mb-10 animate-fade-in">
           <div class="flex items-center gap-2 mb-3.5">
             <span class="w-2 h-2 rounded-full bg-glacier-400"></span>
             <h2 class="text-sm sm:text-base font-bold text-white tracking-tight">
@@ -127,13 +164,20 @@
             <BookX class="w-8 h-8" />
           </div>
           <h3 class="text-base font-semibold text-white mb-1">
-            {{ isSearching ? 'No books found matching your search' : 'No books in library yet' }}
+            {{ isSearching ? 'No books found matching your search' : (selectedTag ? `No books found with tag #${selectedTag}` : 'No books in library yet') }}
           </h3>
           <p class="text-xs text-slate-400 max-w-sm mb-6">
-            {{ isSearching ? 'Try adjusting your search terms or keywords.' : 'Add .epub or .pdf files into your books directory and click Rescan.' }}
+            {{ isSearching ? 'Try adjusting your search terms or keywords.' : (selectedTag ? 'Try selecting another genre or clear the active filter.' : 'Add .epub or .pdf files into your books directory and click Rescan.') }}
           </p>
           <button
-            v-if="!isSearching && isAdmin"
+            v-if="selectedTag"
+            @click="clearTagFilter"
+            class="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white text-xs font-medium transition-all cursor-pointer"
+          >
+            Clear Genre Filter
+          </button>
+          <button
+            v-else-if="!isSearching && isAdmin"
             @click="handleScan"
             :disabled="isScanning"
             class="px-4 py-2 rounded-xl bg-glacier-500 hover:bg-glacier-400 text-slate-950 text-xs font-semibold shadow-md shadow-glacier-500/20 transition-all cursor-pointer"
@@ -153,6 +197,7 @@
             :book="book"
             @select="selectedBook = book"
             @read="openReader(book)"
+            @filter-tag="handleSelectTag"
           />
         </div>
 
@@ -177,6 +222,7 @@
         @read="openReader"
         @update="onBookUpdated"
         @delete="onBookDeleted"
+        @filter-tag="handleSelectTag"
       />
 
       <!-- Web Reader View -->
@@ -205,7 +251,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { Loader2, BookX, BookOpen } from 'lucide-vue-next'
+import { Loader2, BookX, BookOpen, Tag, X } from 'lucide-vue-next'
 import Navbar from './components/Navbar.vue'
 import BookCard from './components/BookCard.vue'
 import BookDetailModal from './components/BookDetailModal.vue'
@@ -214,13 +260,15 @@ import SetupView from './components/SetupView.vue'
 import LoginView from './components/LoginView.vue'
 import UsersModal from './components/UsersModal.vue'
 import UploadModal from './components/UploadModal.vue'
-import { fetchBooks, searchBooks, triggerScan, fetchContinueReading } from './api/client.js'
+import { fetchBooks, searchBooks, triggerScan, fetchContinueReading, fetchTags } from './api/client.js'
 import { useAuth } from './composables/useAuth'
 
 const { isAuthenticated, isAdmin, setupRequired, loading: authLoading, checkAuth, canRead } = useAuth()
 
 const books = ref([])
 const continueBooks = ref([])
+const tags = ref([])
+const selectedTag = ref('')
 const totalBooks = ref(0)
 const currentPage = ref(1)
 const pageSize = 24
@@ -247,6 +295,16 @@ async function loadContinueReading() {
   }
 }
 
+async function loadTags() {
+  if (!isAuthenticated.value) return
+  try {
+    const items = await fetchTags()
+    tags.value = items || []
+  } catch (err) {
+    console.warn('Failed to load tags:', err)
+  }
+}
+
 async function loadData(page = 1, append = false) {
   if (!isAuthenticated.value) return
   loading.value = true
@@ -255,9 +313,12 @@ async function loadData(page = 1, append = false) {
     if (isSearching.value) {
       res = await searchBooks({ q: searchQuery.value, page, limit: pageSize })
     } else {
-      res = await fetchBooks({ page, limit: pageSize })
+      res = await fetchBooks({ page, limit: pageSize, tag: selectedTag.value })
       if (page === 1) {
-        await loadContinueReading()
+        await Promise.all([
+          loadContinueReading(),
+          loadTags()
+        ])
       }
     }
 
@@ -275,14 +336,29 @@ async function loadData(page = 1, append = false) {
   }
 }
 
+function handleSelectTag(tag) {
+  selectedTag.value = tag
+  searchQuery.value = ''
+  currentPage.value = 1
+  loadData(1, false)
+}
+
+function clearTagFilter() {
+  selectedTag.value = ''
+  currentPage.value = 1
+  loadData(1, false)
+}
+
 function handleSearch(query) {
   searchQuery.value = query
+  selectedTag.value = ''
   currentPage.value = 1
   loadData(1, false)
 }
 
 function resetView() {
   searchQuery.value = ''
+  selectedTag.value = ''
   selectedBook.value = null
   readingBook.value = null
   loadData(1, false)
@@ -304,6 +380,7 @@ async function handleScan() {
     // Poll for changes after 3 seconds
     setTimeout(async () => {
       await loadData(1, false)
+      await loadTags()
       isScanning.value = false
       scanMessage.value = 'Library updated!'
       setTimeout(() => {
@@ -339,10 +416,12 @@ function onProgressUpdated({ bookId, progress, isFinished }) {
 
 function onAuthSuccess() {
   loadData(1, false)
+  loadTags()
 }
 
 function onBooksUploaded() {
   loadData(1, false)
+  loadTags()
 }
 
 function onBookUpdated(updatedBook) {
@@ -366,6 +445,8 @@ function onBookUpdated(updatedBook) {
     ...updatedBook,
     authors: updatedBook.authors?.map(a => typeof a === 'string' ? a : a.name) || []
   }
+
+  loadTags()
 }
 
 function onBookDeleted(bookId) {
@@ -375,14 +456,18 @@ function onBookDeleted(bookId) {
     totalBooks.value--
   }
   selectedBook.value = null
+  loadTags()
 }
 
 watch(isAuthenticated, (newVal) => {
   if (newVal) {
     loadData(1, false)
+    loadTags()
   } else {
     books.value = []
     continueBooks.value = []
+    tags.value = []
+    selectedTag.value = ''
     totalBooks.value = 0
     selectedBook.value = null
     readingBook.value = null
@@ -395,6 +480,7 @@ onMounted(async () => {
   await checkAuth()
   if (isAuthenticated.value) {
     loadData(1, false)
+    loadTags()
   }
 })
 </script>

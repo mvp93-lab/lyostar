@@ -9,7 +9,7 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
 - **Core MVP / Hạ tầng cốt lõi**: `100% Hoàn thành`
 - **Quét thư viện & Quản lý Metadata**: `90% Hoàn thành`
 - **Trình đọc sách (Web Readers)**: `75% Hoàn thành`
-- **Duyệt & Tổ chức thư viện**: `65% Hoàn thành`
+- **Duyệt & Tổ chức thư viện**: `80% Hoàn thành`
 - **Quản lý người dùng & Bảo mật**: `95% Hoàn thành`
 - **Kết nối thiết bị ngoài (OPDS / E-Reader)**: `0% Hoàn thành`
 
@@ -65,9 +65,14 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
   - [ ] Cho phép người dùng tự tạo kệ sách cá nhân (ví dụ: *"Sách yêu thích"*, *"Muốn đọc"*, *"Học kỹ thuật"*).
   - [ ] Thêm / bớt sách vào kệ sách tùy chỉnh.
   - [ ] Tùy chọn kệ sách công khai (Public) hoặc riêng tư (Private).
-- [ ] **Phân loại theo Thể loại (Tags / Categories / Genres)**:
-  - [ ] Trích xuất trường `<dc:subject>` từ EPUB / PDF.
-  - [ ] Bộ lọc và trang danh mục theo Thể loại / Tag.
+- [x] **Phân loại theo Thể loại (Tags / Categories / Genres)**:
+  - [x] Trích xuất trường `<dc:subject>` từ EPUB và `/Keywords` / XMP `Subject` từ PDF.
+  - [x] Lưu trữ cấu trúc quan hệ `tags` & `book_tags` trong SQLite, truy vấn không trùng lặp qua subquery.
+  - [x] Endpoint `GET /api/tags` trả về danh sách thể loại kèm `book_count`.
+  - [x] Lọc thư viện theo thể loại qua `GET /api/books?tag=...`.
+  - [x] Thanh duyệt thể loại trực quan (Horizontal Genre Bar) trên Web UI kèm số lượng sách.
+  - [x] Hiển thị tag pills trên thẻ sách và modal chi tiết, bấm vào để lọc nhanh thư viện theo tag.
+  - [x] Chỉnh sửa danh sách Tags / Categories trực tiếp từ Metadata Editor (`can_edit`).
 - [ ] **Đánh giá sao (Rating System)**:
   - [ ] Chấm điểm sách từ 1 đến 5 sao theo từng tài khoản.
   - [ ] Lọc sách theo số sao đánh giá.

@@ -87,6 +87,22 @@
       <p class="text-xs text-slate-400 mt-1 line-clamp-1">
         {{ formatAuthors(book.authors) }}
       </p>
+
+      <!-- Tags Pills -->
+      <div v-if="book.tags && book.tags.length > 0" class="mt-2 flex flex-wrap items-center gap-1 overflow-hidden">
+        <span
+          v-for="tag in book.tags.slice(0, 2)"
+          :key="tag"
+          @click.stop="$emit('filter-tag', tag)"
+          class="inline-block text-[10px] px-1.5 py-0.5 rounded-md bg-white/[0.03] hover:bg-glacier-500/15 text-slate-400 hover:text-glacier-300 border border-white/[0.06] hover:border-glacier-400/30 transition-all truncate max-w-[100px] cursor-pointer"
+          :title="`Filter by ${tag}`"
+        >
+          #{{ tag }}
+        </span>
+        <span v-if="book.tags.length > 2" class="text-[9px] text-slate-500 font-mono">
+          +{{ book.tags.length - 2 }}
+        </span>
+      </div>
     </div>
   </div>
 </template>
@@ -102,7 +118,7 @@ const props = defineProps({
   }
 })
 
-defineEmits(['select', 'read'])
+defineEmits(['select', 'read', 'filter-tag'])
 const { canRead } = useAuth()
 
 function formatAuthors(authors) {

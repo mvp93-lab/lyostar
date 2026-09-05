@@ -230,6 +230,7 @@ func (s *Scanner) indexFileInternal(ctx context.Context, filePath string) (*data
 	var meta struct {
 		Title       string
 		Authors     []string
+		Tags        []string
 		Description string
 		Publisher   string
 		Language    string
@@ -249,6 +250,7 @@ func (s *Scanner) indexFileInternal(ctx context.Context, filePath string) (*data
 		meta = struct {
 			Title       string
 			Authors     []string
+			Tags        []string
 			Description string
 			Publisher   string
 			Language    string
@@ -258,6 +260,7 @@ func (s *Scanner) indexFileInternal(ctx context.Context, filePath string) (*data
 		}{
 			Title:       bookInfo.Metadata.Title,
 			Authors:     bookInfo.Metadata.Authors,
+			Tags:        bookInfo.Metadata.Tags,
 			Description: bookInfo.Metadata.Description,
 			Publisher:   bookInfo.Metadata.Publisher,
 			Language:    bookInfo.Metadata.Language,
@@ -276,6 +279,7 @@ func (s *Scanner) indexFileInternal(ctx context.Context, filePath string) (*data
 		meta = struct {
 			Title       string
 			Authors     []string
+			Tags        []string
 			Description string
 			Publisher   string
 			Language    string
@@ -285,6 +289,7 @@ func (s *Scanner) indexFileInternal(ctx context.Context, filePath string) (*data
 		}{
 			Title:       bookInfo.Metadata.Title,
 			Authors:     bookInfo.Metadata.Authors,
+			Tags:        bookInfo.Metadata.Tags,
 			Description: bookInfo.Metadata.Description,
 			Publisher:   bookInfo.Metadata.Publisher,
 			Language:    bookInfo.Metadata.Language,
@@ -365,6 +370,26 @@ func (s *Scanner) indexFileInternal(ctx context.Context, filePath string) (*data
 			Role:     "aut",
 		}); err != nil {
 			log.Printf("[Scanner] Failed to link author %s to book %d: %v", authorName, createdBook.ID, err)
+		}
+	}
+
+	// Link tags
+	for _, tagName := range meta.Tags {
+		tagName = strings.TrimSpace(tagName)
+		if tagName == "" {
+			continue
+		}
+		tag, err := s.db.CreateTag(ctx, tagName)
+		if err != nil {
+			log.Printf("[Scanner] Failed to create/get tag %s: %v", tagName, err)
+			continue
+		}
+
+		if err := s.db.AddBookTag(ctx, database.AddBookTagParams{
+			BookID: createdBook.ID,
+			TagID:  tag.ID,
+		}); err != nil {
+			log.Printf("[Scanner] Failed to link tag %s to book %d: %v", tagName, createdBook.ID, err)
 		}
 	}
 

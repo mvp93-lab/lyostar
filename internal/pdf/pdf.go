@@ -19,6 +19,7 @@ import (
 type Metadata struct {
 	Title       string
 	Authors     []string
+	Tags        []string
 	Description string
 	Publisher   string
 	Language    string
@@ -54,6 +55,11 @@ type xmpMeta struct {
 					Li []string `xml:"li"`
 				} `xml:"Alt"`
 			} `xml:"description"`
+			Subject struct {
+				Bag struct {
+					Li []string `xml:"li"`
+				} `xml:"Bag"`
+			} `xml:"subject"`
 			Date       []string `xml:"date"`
 			CreateDate string   `xml:"CreateDate"`
 		} `xml:"Description"`
@@ -67,6 +73,7 @@ var (
 	titleRegex       = regexp.MustCompile(`/Title\s*(\((?:\\.|[^)])*\)|<[0-9a-fA-F]+>)`)
 	authorRegex      = regexp.MustCompile(`/Author\s*(\((?:\\.|[^)])*\)|<[0-9a-fA-F]+>)`)
 	subjectRegex     = regexp.MustCompile(`/Subject\s*(\((?:\\.|[^)])*\)|<[0-9a-fA-F]+>)`)
+	keywordsRegex    = regexp.MustCompile(`/Keywords\s*(\((?:\\.|[^)])*\)|<[0-9a-fA-F]+>)`)
 	dateRegex        = regexp.MustCompile(`/CreationDate\s*(\((?:\\.|[^)])*\)|<[0-9a-fA-F]+>)`)
 	xmpRegex         = regexp.MustCompile(`(?s)<x:xmpmeta[\s\S]*?</x:xmpmeta>`)
 )
@@ -208,6 +215,18 @@ func extractInfoMetadata(data []byte, meta *Metadata) {
 			meta.PubDate = parsePDFDate(decodePDFString(m[1]))
 		}
 	}
+	if m := keywordsRegex.FindSubmatch(data); len(m) > 1 {
+		raw := decodePDFString(m[1])
+		parts := strings.FieldsFunc(raw, func(r rune) bool {
+			return r == ',' || r == ';'
+		})
+		for _, part := range parts {
+			trimmed := strings.TrimSpace(part)
+			if trimmed != "" {
+				meta.Tags = append(meta.Tags, trimmed)
+			}
+		}
+	}
 }
 
 func extractXMPMetadata(data []byte, meta *Metadata) {
@@ -229,6 +248,14 @@ func extractXMPMetadata(data []byte, meta *Metadata) {
 			}
 			if meta.Description == "" && len(desc.Description.Alt.Li) > 0 {
 				meta.Description = strings.TrimSpace(desc.Description.Alt.Li[0])
+			}
+			if len(desc.Subject.Bag.Li) > 0 {
+				for _, tag := range desc.Subject.Bag.Li {
+					trimmed := strings.TrimSpace(tag)
+					if trimmed != "" {
+						meta.Tags = append(meta.Tags, trimmed)
+					}
+				}
 			}
 			if meta.PubDate == "" {
 				if len(desc.Date) > 0 {

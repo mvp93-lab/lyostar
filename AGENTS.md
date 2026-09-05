@@ -22,6 +22,7 @@ You are an expert systems engineer building "Lyostar", an ultra-lightweight, sin
 - Authentication & Sessions: Pure Go `bcrypt` password hashing. Zero-dependency session management stored in SQLite `sessions` table via secure 64-char CSPRNG hex tokens. Transport via `HttpOnly`, `SameSite=Lax` cookies. Role-based Access Control (`admin`, `reader`) and granular user permissions matching Calibre-Web architecture (`can_read`, `can_download`, `can_upload`, `can_edit`, `can_delete`). Admin can configure capabilities for any user and self.
 - Book Upload & Ingestion: Endpoint `POST /api/books/upload` guarded by `can_upload` permission. Uploads `.epub` and `.pdf` up to 100MB directly to `/data/uploads`, calculates SHA-256 for duplicate conflict detection (409 Conflict), extracts metadata and cover thumbnail immediately via `scanner.IndexFile`, and reflects instantaneously on the shelf UI without requiring full rescan.
 - Reading Progress & Resume: Per-user reading progress stored in SQLite `reading_progress` table (composite key `user_id, book_id`). Tracks location (Foliate EPUB CFI or PDF page number), progress fraction (0.0-1.0), and finished status. Readers resume automatically from saved position.
+- Tags & Categories Architecture: Extracted from EPUB `<dc:subject>` and PDF `/Keywords` & XMP `Subject`. Relational persistence in SQLite `tags` and `book_tags` tables with foreign key cascades and correlated subqueries preventing join duplications. API endpoints `GET /api/tags` and `GET /api/books?tag=...`. Interactive UI with horizontal genre bar, quick tag filtering, and metadata tag editing.
 - Thumbnail Pipeline: Downscale cover images to WebP format (max width: 400px), store at `/data/cache/covers/{file_sha256}.webp`.
 - Frontend: Vue 3 (Composition API, `<script setup>`), Vite, Tailwind CSS, Lucide Icons (`lucide-vue-next`).
   - Design Language: Clean, dark-mode first (Deep slate `#090a0f`, subtle 1px borders, Glacier Blue `#38bdf8` accents). Responsive and legible on OLED screens and slow-refresh E-Ink browsers.
@@ -29,7 +30,7 @@ You are an expert systems engineer building "Lyostar", an ultra-lightweight, sin
   - SPA Routing: Backend HTTP router must fallback unmatched non-API routes to `index.html` to prevent 404s on browser reload.
 
 ## 4. Scope Control
-- Core Scope: Scanning local EPUB & PDF files, uploading new books via Web UI, extracting metadata/covers, SQLite indexing, shelf web UI, in-browser EPUB/PDF readers, multi-user authentication & RBAC (Admin & Reader), first-run setup wizard, per-user reading progress tracking & resume, "Continue Reading" shelf section.
+- Core Scope: Scanning local EPUB & PDF files, uploading new books via Web UI, extracting metadata/covers, SQLite indexing, genre & tags classification, shelf web UI with tag filtering, in-browser EPUB/PDF readers, multi-user authentication & RBAC (Admin & Reader), first-run setup wizard, per-user reading progress tracking & resume, "Continue Reading" shelf section.
 - Out of MVP Scope: Do NOT implement OPDS feeds or Send-to-Kindle until explicitly instructed.
 
 ## 5. Specification Maintenance Directive

@@ -41,6 +41,7 @@ type BookListItem struct {
 	ID          int64    `json:"id"`
 	Title       string   `json:"title"`
 	Authors     []string `json:"authors"`
+	Tags        []string `json:"tags"`
 	Description string   `json:"description"`
 	Publisher   string   `json:"publisher"`
 	Language    string   `json:"language"`
@@ -64,6 +65,7 @@ type BookDetailResponse struct {
 	ID          int64             `json:"id"`
 	Title       string            `json:"title"`
 	Authors     []AuthorRoleItem  `json:"authors"`
+	Tags        []string          `json:"tags"`
 	Description string            `json:"description"`
 	Publisher   string            `json:"publisher"`
 	Language    string            `json:"language"`
@@ -86,12 +88,20 @@ type BookDetailResponse struct {
 type UpdateBookMetadataRequest struct {
 	Title       string   `json:"title"`
 	Authors     []string `json:"authors"`
+	Tags        []string `json:"tags"`
 	Description string   `json:"description"`
 	Publisher   string   `json:"publisher"`
 	Language    string   `json:"language"`
 	PubDate     string   `json:"pub_date"`
 	Series      string   `json:"series"`
 	SeriesIndex float64  `json:"series_index"`
+}
+
+// TagItem represents a tag with its book count.
+type TagItem struct {
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	BookCount int64  `json:"book_count"`
 }
 
 // AuthorRoleItem represents an author with their contribution role.
@@ -148,6 +158,26 @@ func NewRouter(cfg RouterConfig) http.Handler {
 				"status":  "scanning",
 				"message": "Scan started in background",
 			})
+		})
+
+		// GET /api/tags (List all tags with book counts)
+		api.Get("/tags", func(w http.ResponseWriter, r *http.Request) {
+			tagRows, err := cfg.DB.ListTags(r.Context())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to query tags")
+				return
+			}
+
+			items := make([]TagItem, 0, len(tagRows))
+			for _, tr := range tagRows {
+				items = append(items, TagItem{
+					ID:        tr.ID,
+					Name:      tr.Name,
+					BookCount: tr.BookCount,
+				})
+			}
+
+			writeJSON(w, http.StatusOK, items)
 		})
 
 		// Protected endpoints (Require active authentication)
@@ -229,6 +259,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						})
 					}
 
+					tagRows, _ := cfg.DB.GetTagsForBook(r.Context(), book.ID)
+					tags := make([]string, 0, len(tagRows))
+					for _, tr := range tagRows {
+						tags = append(tags, tr.Name)
+					}
+
 					hasCover := book.CoverPath != ""
 					var coverURL string
 					if hasCover {
@@ -239,6 +275,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						ID:          book.ID,
 						Title:       book.Title,
 						Authors:     authors,
+						Tags:        tags,
 						Description: book.Description,
 						Publisher:   book.Publisher,
 						Language:    book.Language,
@@ -262,37 +299,73 @@ func NewRouter(cfg RouterConfig) http.Handler {
 				books.Get("/", func(w http.ResponseWriter, r *http.Request) {
 					page, limit := parsePagination(r)
 					offset := (page - 1) * limit
+					tagFilter := strings.TrimSpace(r.URL.Query().Get("tag"))
 
 					userID := int64(0)
 					if u := auth.GetUser(r.Context()); u != nil {
 						userID = u.ID
 					}
 
-					rows, err := cfg.DB.ListBooksWithAuthorsAndProgress(r.Context(), database.ListBooksWithAuthorsAndProgressParams{
-						UserID: userID,
-						Limit:  int64(limit),
-						Offset: int64(offset),
-					})
-					if err != nil {
-						writeError(w, http.StatusInternalServerError, "failed to query books")
-						return
-					}
+					var items []BookListItem
+					var total int64
 
-					total, err := cfg.DB.CountBooks(r.Context())
-					if err != nil {
-						writeError(w, http.StatusInternalServerError, "failed to count books")
-						return
-					}
+					if tagFilter != "" {
+						rows, err := cfg.DB.ListBooksByTagWithAuthorsAndProgress(r.Context(), database.ListBooksByTagWithAuthorsAndProgressParams{
+							UserID: userID,
+							Name:   tagFilter,
+							Limit:  int64(limit),
+							Offset: int64(offset),
+						})
+						if err != nil {
+							writeError(w, http.StatusInternalServerError, "failed to query books by tag")
+							return
+						}
 
-					items := make([]BookListItem, 0, len(rows))
-					for _, row := range rows {
-						items = append(items, toBookListItem(
-							row.ID, row.Title, row.AuthorNames, row.Description,
-							row.Publisher, row.Language, row.PubDate, row.Series,
-							row.SeriesIndex, row.FileSize, row.Format, row.CoverPath,
-							row.CreatedAt, row.UpdatedAt,
-							row.UserProgress, row.UserIsFinished == 1,
-						))
+						count, err := cfg.DB.CountBooksByTag(r.Context(), tagFilter)
+						if err != nil {
+							writeError(w, http.StatusInternalServerError, "failed to count books by tag")
+							return
+						}
+						total = count
+
+						items = make([]BookListItem, 0, len(rows))
+						for _, row := range rows {
+							items = append(items, toBookListItem(
+								row.ID, row.Title, row.AuthorNames, row.TagNames, row.Description,
+								row.Publisher, row.Language, row.PubDate, row.Series,
+								row.SeriesIndex, row.FileSize, row.Format, row.CoverPath,
+								row.CreatedAt, row.UpdatedAt,
+								row.UserProgress, row.UserIsFinished == 1,
+							))
+						}
+					} else {
+						rows, err := cfg.DB.ListBooksWithAuthorsAndProgress(r.Context(), database.ListBooksWithAuthorsAndProgressParams{
+							UserID: userID,
+							Limit:  int64(limit),
+							Offset: int64(offset),
+						})
+						if err != nil {
+							writeError(w, http.StatusInternalServerError, "failed to query books")
+							return
+						}
+
+						count, err := cfg.DB.CountBooks(r.Context())
+						if err != nil {
+							writeError(w, http.StatusInternalServerError, "failed to count books")
+							return
+						}
+						total = count
+
+						items = make([]BookListItem, 0, len(rows))
+						for _, row := range rows {
+							items = append(items, toBookListItem(
+								row.ID, row.Title, row.AuthorNames, row.TagNames, row.Description,
+								row.Publisher, row.Language, row.PubDate, row.Series,
+								row.SeriesIndex, row.FileSize, row.Format, row.CoverPath,
+								row.CreatedAt, row.UpdatedAt,
+								row.UserProgress, row.UserIsFinished == 1,
+							))
+						}
 					}
 
 					writeJSON(w, http.StatusOK, PaginatedResponse[BookListItem]{
@@ -338,6 +411,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						})
 					}
 
+					tagRows, _ := cfg.DB.GetTagsForBook(r.Context(), id)
+					tags := make([]string, 0, len(tagRows))
+					for _, tr := range tagRows {
+						tags = append(tags, tr.Name)
+					}
+
 					hasCover := b.CoverPath != ""
 					var coverURL string
 					if hasCover {
@@ -357,6 +436,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						ID:          b.ID,
 						Title:       b.Title,
 						Authors:     authors,
+						Tags:        tags,
 						Description: b.Description,
 						Publisher:   b.Publisher,
 						Language:    b.Language,
@@ -527,6 +607,33 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						}
 					}
 
+					if req.Tags != nil {
+						if err := cfg.DB.ClearBookTags(r.Context(), id); err != nil {
+							writeError(w, http.StatusInternalServerError, "failed to update book tags")
+							return
+						}
+						for _, tagName := range req.Tags {
+							trimmed := strings.TrimSpace(tagName)
+							if trimmed == "" {
+								continue
+							}
+							tag, err := cfg.DB.CreateTag(r.Context(), trimmed)
+							if err != nil {
+								continue
+							}
+							_ = cfg.DB.AddBookTag(r.Context(), database.AddBookTagParams{
+								BookID: id,
+								TagID:  tag.ID,
+							})
+						}
+					}
+
+					tagRows, _ := cfg.DB.GetTagsForBook(r.Context(), id)
+					tags := make([]string, 0, len(tagRows))
+					for _, tr := range tagRows {
+						tags = append(tags, tr.Name)
+					}
+
 					authorRows, err := cfg.DB.GetAuthorsForBook(r.Context(), id)
 					if err != nil {
 						writeError(w, http.StatusInternalServerError, "failed to fetch authors")
@@ -561,6 +668,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						ID:          updatedBook.ID,
 						Title:       updatedBook.Title,
 						Authors:     authors,
+						Tags:        tags,
 						Description: updatedBook.Description,
 						Publisher:   updatedBook.Publisher,
 						Language:    updatedBook.Language,
@@ -679,7 +787,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			items := make([]BookListItem, 0, len(rows))
 			for _, row := range rows {
 				items = append(items, toBookListItem(
-					row.ID, row.Title, row.AuthorNames, row.Description,
+					row.ID, row.Title, row.AuthorNames, row.TagNames, row.Description,
 					row.Publisher, row.Language, row.PubDate, row.Series,
 					row.SeriesIndex, row.FileSize, row.Format, row.CoverPath,
 					row.CreatedAt, row.UpdatedAt,
@@ -775,7 +883,7 @@ func sanitizeFTS5Query(q string) string {
 }
 
 func toBookListItem(
-	id int64, title string, authorNames any, description, publisher, language, pubDate, series string,
+	id int64, title string, authorNames any, tagNames any, description, publisher, language, pubDate, series string,
 	seriesIndex float64, fileSize int64, format, coverPath string,
 	createdAt, updatedAt any,
 	progress float64, isFinished bool,
@@ -792,6 +900,15 @@ func toBookListItem(
 		authors = []string{"Unknown"}
 	}
 
+	var tags []string
+	if tagsStr, ok := tagNames.(string); ok && tagsStr != "" {
+		for _, t := range strings.Split(tagsStr, ", ") {
+			if trimmed := strings.TrimSpace(t); trimmed != "" {
+				tags = append(tags, trimmed)
+			}
+		}
+	}
+
 	hasCover := coverPath != ""
 	var coverURL string
 	if hasCover {
@@ -802,6 +919,7 @@ func toBookListItem(
 		ID:          id,
 		Title:       title,
 		Authors:     authors,
+		Tags:        tags,
 		Description: description,
 		Publisher:   publisher,
 		Language:    language,

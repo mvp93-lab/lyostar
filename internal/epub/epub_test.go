@@ -132,32 +132,35 @@ func TestParseEPUB3Standard(t *testing.T) {
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:title>Dune</dc:title>
     <dc:creator>Frank Herbert</dc:creator>
+    <dc:subject>Science Fiction</dc:subject>
+    <dc:subject>Adventure, Space</dc:subject>
     <dc:description>Sci-fi masterpiece.</dc:description>
     <dc:language>en</dc:language>
     <meta property="belongs-to-collection" id="c01">Dune Chronicles</meta>
     <meta refines="#c01" property="group-position">1.5</meta>
   </metadata>
   <manifest>
-    <item id="my-cover" href="cover.jpg" media-type="image/jpeg" properties="cover-image"/>
+    <item id="cover" href="covers/front.jpg" media-type="image/jpeg" properties="cover-image"/>
   </manifest>
 </package>`
 
-	files := map[string][]byte{
+	data := createEPUBArchive(map[string][]byte{
 		"META-INF/container.xml": []byte(containerXML),
 		"EPUB/package.opf":       []byte(opfXML),
-		"EPUB/cover.jpg":         coverBytes,
-	}
+		"EPUB/covers/front.jpg":  coverBytes,
+	})
 
-	archive := createEPUBArchive(files)
-
-	info, err := Parse(bytes.NewReader(archive), int64(len(archive)))
+	info, err := Parse(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
-		t.Fatalf("failed to parse EPUB 3: %v", err)
+		t.Fatalf("failed to parse EPUB3: %v", err)
 	}
 
 	m := info.Metadata
 	if m.Title != "Dune" {
 		t.Errorf("expected title 'Dune', got %q", m.Title)
+	}
+	if len(m.Tags) != 3 || m.Tags[0] != "Science Fiction" || m.Tags[1] != "Adventure" || m.Tags[2] != "Space" {
+		t.Errorf("expected 3 tags [Science Fiction, Adventure, Space], got: %+v", m.Tags)
 	}
 	if len(m.Authors) != 1 || m.Authors[0] != "Frank Herbert" {
 		t.Errorf("unexpected authors: %+v", m.Authors)

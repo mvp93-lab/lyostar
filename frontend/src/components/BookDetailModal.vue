@@ -108,6 +108,20 @@
           By {{ formatAuthors(currentBook.authors) }}
         </p>
 
+        <!-- Tags / Categories -->
+        <div v-if="currentBook.tags && currentBook.tags.length > 0" class="mt-3 flex flex-wrap gap-1.5">
+          <span
+            v-for="tag in currentBook.tags"
+            :key="tag"
+            @click="$emit('filter-tag', tag); $emit('close')"
+            class="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-glacier-500/15 text-slate-300 hover:text-glacier-300 border border-white/[0.08] hover:border-glacier-400/30 transition-all cursor-pointer"
+            :title="`Filter library by #${tag}`"
+          >
+            <Tag class="w-3 h-3 text-glacier-400/80" />
+            #{{ tag }}
+          </span>
+        </div>
+
         <!-- Description -->
         <div class="mt-4 flex-1">
           <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Description</h4>
@@ -180,6 +194,19 @@
               v-model="editForm.authorsStr"
               type="text"
               placeholder="e.g. Robert C. Martin, Martin Fowler"
+              class="w-full px-3 py-2 rounded-xl bg-slate-900/80 border border-white/[0.1] text-white text-xs placeholder-slate-500 focus:outline-none focus:border-glacier-400 focus:ring-1 focus:ring-glacier-400 transition-colors"
+            />
+          </div>
+
+          <!-- Tags / Categories Input -->
+          <div>
+            <label class="block text-slate-400 font-medium mb-1">
+              Categories / Tags <span class="text-slate-500 font-normal">(comma-separated)</span>
+            </label>
+            <input
+              v-model="editForm.tagsStr"
+              type="text"
+              placeholder="e.g. Science Fiction, Cyberpunk, Adventure"
               class="w-full px-3 py-2 rounded-xl bg-slate-900/80 border border-white/[0.1] text-white text-xs placeholder-slate-500 focus:outline-none focus:border-glacier-400 focus:ring-1 focus:ring-glacier-400 transition-colors"
             />
           </div>
@@ -316,7 +343,7 @@
 
 <script setup>
 import { ref, reactive, watch, onMounted, onBeforeUnmount } from 'vue'
-import { X, Book, BookOpen, Download, FileText, Pencil, Trash2, Save, Loader2, AlertCircle } from 'lucide-vue-next'
+import { X, Book, BookOpen, Download, FileText, Pencil, Trash2, Save, Loader2, AlertCircle, Tag } from 'lucide-vue-next'
 import { useAuth } from '../composables/useAuth'
 import { updateBookMetadata, deleteBook } from '../api/client'
 
@@ -327,7 +354,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'read', 'update', 'delete'])
+const emit = defineEmits(['close', 'read', 'update', 'delete', 'filter-tag'])
 const { canRead, canDownload, canEdit, canDelete } = useAuth()
 
 const currentBook = ref(null)
@@ -341,6 +368,7 @@ const deleteError = ref('')
 const editForm = reactive({
   title: '',
   authorsStr: '',
+  tagsStr: '',
   series: '',
   series_index: 0,
   publisher: '',
@@ -365,8 +393,15 @@ function startEditing() {
     authorsText = currentBook.value.authors.map(a => typeof a === 'string' ? a : a.name).filter(Boolean).join(', ')
   }
 
+  // Format tags to comma-separated string
+  let tagsText = ''
+  if (Array.isArray(currentBook.value.tags)) {
+    tagsText = currentBook.value.tags.filter(Boolean).join(', ')
+  }
+
   editForm.title = currentBook.value.title || ''
   editForm.authorsStr = authorsText
+  editForm.tagsStr = tagsText
   editForm.series = currentBook.value.series || ''
   editForm.series_index = currentBook.value.series_index || 0
   editForm.publisher = currentBook.value.publisher || ''
@@ -398,9 +433,15 @@ async function saveChanges() {
       .map(s => s.trim())
       .filter(Boolean)
 
+    const tags = editForm.tagsStr
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+
     const payload = {
       title: editForm.title.trim(),
       authors,
+      tags,
       series: editForm.series.trim(),
       series_index: Number(editForm.series_index) || 0,
       publisher: editForm.publisher.trim(),
