@@ -13,7 +13,7 @@
 
         <!-- Brand Name (Mobile view when sidebar closed) -->
         <div 
-          @click="$emit('reset')" 
+          @click="onBrandClick" 
           class="flex items-center gap-2 cursor-pointer md:hidden select-none"
         >
           <div class="w-7 h-7 rounded-lg bg-glacier-400/10 border border-glacier-400/20 flex items-center justify-center text-glacier-400">
@@ -59,7 +59,7 @@
         <!-- Quick Upload Book Button (can_upload) -->
         <button
           v-if="canUpload"
-          @click="$emit('open-upload')"
+          @click="onUploadClick"
           class="flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold bg-glacier-500 hover:bg-glacier-400 text-slate-950 shadow-md shadow-glacier-500/20 hover:shadow-glacier-500/30 transition-all cursor-pointer"
           title="Upload Ebook (.epub, .pdf)"
         >
@@ -137,7 +137,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { BookOpen, Search, X, Menu, RefreshCw, Upload, MoreVertical, LogOut } from 'lucide-vue-next'
 import { useAuth } from '../composables/useAuth'
 
@@ -150,9 +151,19 @@ const props = defineProps({
 
 const emit = defineEmits(['search', 'reset', 'toggle-sidebar', 'open-upload'])
 
+const router = useRouter()
+const route = useRoute()
 const { user, canUpload, logout } = useAuth()
-const searchQuery = ref('')
+const searchQuery = ref(route.query.q || '')
 let debounceTimer = null
+
+watch(() => route.query.q, (newQ) => {
+  if (newQ !== undefined && newQ !== searchQuery.value) {
+    searchQuery.value = newQ
+  } else if (route.name !== 'search' && !route.query.q && searchQuery.value) {
+    searchQuery.value = ''
+  }
+})
 
 const showUserMenu = ref(false)
 const userMenuRef = ref(null)
@@ -178,17 +189,37 @@ onBeforeUnmount(() => {
 async function handleLogout() {
   showUserMenu.value = false
   await logout()
+  router.push('/login')
+}
+
+function onUploadClick() {
+  emit('open-upload')
+  router.push('/upload')
+}
+
+function onBrandClick() {
+  emit('reset')
+  router.push('/books')
 }
 
 function onSearchInput() {
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => {
-    emit('search', searchQuery.value.trim())
-  }, 250)
+    const q = searchQuery.value.trim()
+    emit('search', q)
+    if (q) {
+      router.push({ path: '/search', query: { q } })
+    } else if (route.name === 'search') {
+      router.push('/books')
+    }
+  }, 300)
 }
 
 function clearSearch() {
   searchQuery.value = ''
   emit('search', '')
+  if (route.name === 'search' || route.query.q) {
+    router.push('/books')
+  }
 }
 </script>

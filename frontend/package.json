@@ -12,7 +12,8 @@
     "foliate-js": "^1.0.1",
     "lucide-vue-next": "^0.475.0",
     "pdfjs-dist": "^4.10.38",
-    "vue": "^3.5.13"
+    "vue": "^3.5.13",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",

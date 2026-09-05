@@ -64,7 +64,11 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
   - [x] Nhóm BROWSE: All Books, Continue Reading, Categories / Tags, Series, Authors.
   - [x] Nhóm SHELVES: Danh sách kệ cá nhân/công khai của user kèm số lượng sách, nút `+ Create a Shelf` và quản lý kệ.
   - [x] Nhóm MANAGEMENT: Upload sách (`can_upload`), Quản lý Users (Admin), Quét lại thư viện (Admin), Đăng xuất.
-  - [x] Thiết kế Responsive: Cố định trang nhã bên trái trên Desktop (`md:w-64`), tự động chuyển thành Drawer trượt có backdrop-blur mờ trên Mobile.
+- [x] **Web Routing & Deep-Linking (Chuẩn Calibre-Web)**:
+  - [x] Tích hợp `vue-router` chuẩn HTML5 History mode không băm (`#`), đồng bộ 2 chiều giữa URL trình duyệt và trạng thái hiển thị.
+  - [x] Hỗ trợ URL cho từng tính năng: `/books`, `/continue-reading`, `/tags`, `/tags/:tag`, `/shelves/:id`, `/read/:id`, `/book/:id`, `/search?q=...`, `/users`, `/upload`, `/login`, `/setup`.
+  - [x] Deep-linking trực tiếp vào trình đọc sách (`/read/:id`) và chi tiết sách (`/book/:id`), tải thông tin độc lập khi mở link mới hoặc F5.
+  - [x] Hỗ trợ hoàn hảo nút Back / Forward và phím tắt lịch sử của trình duyệt.
 - [x] **Lọc & Sắp xếp cơ bản**: Sắp xếp theo Tên sách, Tác giả, Thời gian thêm mới.
 - [x] **Xem chi tiết sách (Book Detail Modal)**: Hiển thị bìa, mô tả, nhà xuất bản, ngày xuất bản, định dạng file, kích thước.
 - [x] **Tải sách về máy (Direct Download)**: Nút tải file EPUB/PDF gốc về máy cá nhân.

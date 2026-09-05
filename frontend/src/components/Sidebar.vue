@@ -163,7 +163,7 @@
             <!-- Upload Book (can_upload) -->
             <button
               v-if="canUpload"
-              @click="$emit('open-upload')"
+              @click="onUploadClick"
               class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] transition-all cursor-pointer group"
             >
               <Upload class="w-4 h-4 text-glacier-400/80 group-hover:text-glacier-400" />
@@ -173,7 +173,7 @@
             <!-- Users Management (Admin) -->
             <button
               v-if="isAdmin"
-              @click="$emit('open-users')"
+              @click="onUsersClick"
               class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] transition-all cursor-pointer group"
             >
               <Users class="w-4 h-4 text-glacier-400/80 group-hover:text-glacier-400" />
@@ -242,6 +242,7 @@ import {
   LogOut, 
   X 
 } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 
 const props = defineProps({
@@ -290,20 +291,42 @@ const emit = defineEmits([
   'scan'
 ])
 
+const router = useRouter()
 const { user, isAdmin, canUpload, logout } = useAuth()
 
 function onNavClick(nav) {
   emit('select-nav', nav)
   emit('close')
+  if (nav === 'books') {
+    router.push('/books')
+  } else if (nav === 'continue') {
+    router.push('/continue-reading')
+  } else if (nav === 'tags') {
+    router.push('/tags')
+  }
 }
 
 function onShelfClick(shelf) {
   emit('select-shelf', shelf)
   emit('close')
+  router.push(`/shelves/${shelf.id}`)
+}
+
+function onUploadClick() {
+  emit('open-upload')
+  emit('close')
+  router.push('/upload')
+}
+
+function onUsersClick() {
+  emit('open-users')
+  emit('close')
+  router.push('/users')
 }
 
 async function handleLogout() {
   emit('close')
   await logout()
+  router.push('/login')
 }
 </script>

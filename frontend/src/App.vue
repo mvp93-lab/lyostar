@@ -8,13 +8,13 @@
 
     <!-- First-Run Admin Setup Wizard -->
     <SetupView 
-      v-else-if="setupRequired" 
+      v-else-if="setupRequired || route.name === 'setup'" 
       @success="onAuthSuccess" 
     />
 
     <!-- Login Screen -->
     <LoginView 
-      v-else-if="!isAuthenticated" 
+      v-else-if="!isAuthenticated || route.name === 'login'" 
       @success="onAuthSuccess" 
     />
 
@@ -329,7 +329,7 @@
                   v-for="book in books"
                   :key="book.id"
                   :book="book"
-                  @select="selectedBook = book"
+                  @select="openBookDetail(book)"
                   @read="openReader(book)"
                   @filter-tag="handleSelectTag"
                   @open-shelf="b => shelfSelectBook = b"
@@ -356,7 +356,7 @@
       <BookDetailModal
         v-if="selectedBook"
         :book="selectedBook"
-        @close="selectedBook = null"
+        @close="closeBookDetail"
         @read="openReader"
         @update="onBookUpdated"
         @delete="onBookDeleted"
@@ -375,13 +375,13 @@
       <!-- Admin User Management Modal -->
       <UsersModal
         v-if="showUsersModal"
-        @close="showUsersModal = false"
+        @close="closeUsersModal"
       />
 
       <!-- Upload Books Modal -->
       <UploadModal
         v-if="showUploadModal"
-        @close="showUploadModal = false"
+        @close="closeUploadModal"
         @uploaded="onBooksUploaded"
       />
 
@@ -405,6 +405,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { Loader2, BookX, BookOpen, Tag, X, Bookmark } from 'lucide-vue-next'
 import Sidebar from './components/Sidebar.vue'
 import Navbar from './components/Navbar.vue'
@@ -417,9 +418,20 @@ import UsersModal from './components/UsersModal.vue'
 import UploadModal from './components/UploadModal.vue'
 import ShelvesManageModal from './components/ShelvesManageModal.vue'
 import ShelfSelectModal from './components/ShelfSelectModal.vue'
-import { fetchBooks, searchBooks, triggerScan, fetchContinueReading, fetchTags, fetchShelfBooks, fetchShelves } from './api/client.js'
+import { 
+  fetchBooks, 
+  searchBooks, 
+  triggerScan, 
+  fetchContinueReading, 
+  fetchTags, 
+  fetchShelfBooks, 
+  fetchShelves, 
+  fetchBookDetail 
+} from './api/client.js'
 import { useAuth } from './composables/useAuth'
 
+const router = useRouter()
+const route = useRoute()
 const { isAuthenticated, isAdmin, setupRequired, loading: authLoading, checkAuth, canRead } = useAuth()
 
 const sidebarOpen = ref(false)
@@ -490,13 +502,6 @@ async function loadData(page = 1, append = false) {
       res = await fetchShelfBooks(selectedShelf.value.id, { page, limit: pageSize })
     } else {
       res = await fetchBooks({ page, limit: pageSize, tag: selectedTag.value })
-      if (page === 1) {
-        await Promise.all([
-          loadContinueReading(),
-          loadTags(),
-          loadShelves()
-        ])
-      }
     }
 
     if (append) {
@@ -513,37 +518,122 @@ async function loadData(page = 1, append = false) {
   }
 }
 
+async function syncFromRoute(r = route) {
+  if (!isAuthenticated.value) return
+
+  const name = r.name
+  const params = r.params
+  const query = r.query
+
+  // 1. Modals
+  showUsersModal.value = (name === 'users')
+  showUploadModal.value = (name === 'upload')
+
+  // 2. Reader view (/read/:id)
+  if (name === 'reader') {
+    const bookId = Number(params.id)
+    if (!readingBook.value || readingBook.value.id !== bookId) {
+      try {
+        const b = await fetchBookDetail(bookId)
+        readingBook.value = b
+      } catch (err) {
+        console.error('Failed to load book for reader:', err)
+        router.replace('/books')
+        return
+      }
+    }
+    return
+  } else {
+    readingBook.value = null
+  }
+
+  // 3. Book detail modal (/books/:id)
+  if (name === 'book-detail') {
+    const bookId = Number(params.id)
+    if (!selectedBook.value || selectedBook.value.id !== bookId) {
+      try {
+        const b = await fetchBookDetail(bookId)
+        selectedBook.value = b
+      } catch (err) {
+        console.error('Failed to load book detail:', err)
+        router.replace('/books')
+        return
+      }
+    }
+  } else {
+    selectedBook.value = null
+  }
+
+  // 4. Content navigation
+  if (name === 'continue-reading') {
+    activeNav.value = 'continue'
+    selectedShelf.value = null
+    selectedTag.value = ''
+    searchQuery.value = ''
+    await loadContinueReading()
+  } else if (name === 'tags') {
+    activeNav.value = 'tags'
+    selectedShelf.value = null
+    selectedTag.value = ''
+    searchQuery.value = ''
+    await loadTags()
+    await loadData(1, false)
+  } else if (name === 'tag-filter') {
+    activeNav.value = 'tags'
+    selectedShelf.value = null
+    selectedTag.value = decodeURIComponent(params.tag || '')
+    searchQuery.value = ''
+    await loadData(1, false)
+  } else if (name === 'shelf-books') {
+    activeNav.value = 'shelf'
+    const shelfId = Number(params.id)
+    if (shelvesList.value.length === 0) {
+      await loadShelves()
+    }
+    selectedShelf.value = shelvesList.value.find(s => s.id === shelfId) || { id: shelfId, name: 'Custom Shelf' }
+    selectedTag.value = ''
+    searchQuery.value = ''
+    await loadData(1, false)
+  } else if (name === 'search') {
+    activeNav.value = 'books'
+    selectedShelf.value = null
+    selectedTag.value = ''
+    searchQuery.value = query.q || ''
+    await loadData(1, false)
+  } else {
+    // 'books', 'users', 'upload'
+    activeNav.value = 'books'
+    selectedShelf.value = null
+    selectedTag.value = query.tag || ''
+    searchQuery.value = query.q || ''
+    const page = Number(query.page) || 1
+    await loadData(page, false)
+  }
+}
+
+watch(() => route.fullPath, () => {
+  syncFromRoute(route)
+})
+
 function handleSelectNav(nav) {
-  activeNav.value = nav
-  selectedShelf.value = null
-  searchQuery.value = ''
+  sidebarOpen.value = false
   if (nav === 'books') {
-    selectedTag.value = ''
-    currentPage.value = 1
-    loadData(1, false)
+    router.push('/books')
   } else if (nav === 'continue') {
-    selectedTag.value = ''
-    loadContinueReading()
+    router.push('/continue-reading')
   } else if (nav === 'tags') {
-    loadTags()
+    router.push('/tags')
   }
 }
 
 function handleSelectShelf(shelf) {
-  selectedShelf.value = shelf
-  selectedTag.value = ''
-  searchQuery.value = ''
-  activeNav.value = 'shelf'
+  sidebarOpen.value = false
   showShelvesModal.value = false
-  currentPage.value = 1
-  loadData(1, false)
+  router.push(`/shelves/${shelf.id}`)
 }
 
 function clearShelfFilter() {
-  selectedShelf.value = null
-  activeNav.value = 'books'
-  currentPage.value = 1
-  loadData(1, false)
+  router.push('/books')
 }
 
 function onShelfUpdated() {
@@ -554,38 +644,27 @@ function onShelfUpdated() {
 }
 
 function handleSelectTag(tag) {
-  selectedTag.value = tag
-  selectedShelf.value = null
-  activeNav.value = 'tags'
-  searchQuery.value = ''
-  currentPage.value = 1
-  loadData(1, false)
+  if (tag) {
+    router.push(`/tags/${encodeURIComponent(tag)}`)
+  } else {
+    router.push('/books')
+  }
 }
 
 function clearTagFilter() {
-  selectedTag.value = ''
-  selectedShelf.value = null
-  currentPage.value = 1
-  loadData(1, false)
+  router.push('/books')
 }
 
 function handleSearch(query) {
-  searchQuery.value = query
-  selectedTag.value = ''
-  selectedShelf.value = null
-  activeNav.value = 'books'
-  currentPage.value = 1
-  loadData(1, false)
+  if (query) {
+    router.push({ path: '/search', query: { q: query } })
+  } else if (route.name === 'search') {
+    router.push('/books')
+  }
 }
 
 function resetView() {
-  searchQuery.value = ''
-  selectedTag.value = ''
-  selectedShelf.value = null
-  activeNav.value = 'books'
-  selectedBook.value = null
-  readingBook.value = null
-  loadData(1, false)
+  router.push('/books')
 }
 
 function loadMore() {
@@ -619,15 +698,61 @@ async function handleScan() {
   }
 }
 
+function openBookDetail(book) {
+  selectedBook.value = book
+  router.push(`/books/${book.id}`)
+}
+
+function closeBookDetail() {
+  selectedBook.value = null
+  if (route.name === 'book-detail') {
+    if (window.history.length > 1) {
+      router.back()
+    } else {
+      router.push('/books')
+    }
+  }
+}
+
 function openReader(book) {
   if (!canRead.value) return
   selectedBook.value = null
   readingBook.value = book
+  router.push(`/read/${book.id}`)
 }
 
 function closeReader() {
   readingBook.value = null
   loadContinueReading()
+  if (route.name === 'reader') {
+    if (window.history.length > 1) {
+      router.back()
+    } else {
+      router.push('/books')
+    }
+  }
+}
+
+function closeUsersModal() {
+  showUsersModal.value = false
+  if (route.name === 'users') {
+    if (window.history.length > 1) {
+      router.back()
+    } else {
+      router.push('/books')
+    }
+  }
+}
+
+function closeUploadModal() {
+  showUploadModal.value = false
+  if (route.name === 'upload') {
+    if (window.history.length > 1) {
+      router.back()
+    } else {
+      router.push('/books')
+    }
+  }
 }
 
 function onProgressUpdated({ bookId, progress, isFinished }) {
@@ -640,9 +765,14 @@ function onProgressUpdated({ bookId, progress, isFinished }) {
 }
 
 function onAuthSuccess() {
-  loadData(1, false)
-  loadTags()
   loadShelves()
+  loadTags()
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/')) {
+    router.push(redirect)
+  } else {
+    router.push('/books')
+  }
 }
 
 function onBooksUploaded() {
@@ -683,16 +813,17 @@ function onBookDeleted(bookId) {
   if (totalBooks.value > 0) {
     totalBooks.value--
   }
-  selectedBook.value = null
+  closeBookDetail()
   loadTags()
   loadShelves()
 }
 
-watch(isAuthenticated, (newVal) => {
+watch(isAuthenticated, async (newVal) => {
   if (newVal) {
-    loadData(1, false)
-    loadTags()
-    loadShelves()
+    await loadShelves()
+    await loadTags()
+    await loadContinueReading()
+    await syncFromRoute(route)
   } else {
     sidebarOpen.value = false
     activeNav.value = 'books'
@@ -715,9 +846,10 @@ watch(isAuthenticated, (newVal) => {
 onMounted(async () => {
   await checkAuth()
   if (isAuthenticated.value) {
-    loadData(1, false)
-    loadTags()
-    loadShelves()
+    await loadShelves()
+    await loadTags()
+    await loadContinueReading()
+    await syncFromRoute(route)
   }
 })
 </script>
