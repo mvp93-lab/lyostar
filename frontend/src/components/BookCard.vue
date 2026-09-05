@@ -143,4 +143,9 @@ const props = defineProps({
 
 defineEmits(['select', 'read', 'filter-tag', 'filter-author', 'filter-series', 'open-shelf'])
 const { canRead } = useAuth()
+
+function formatAuthors(authors) {
+  if (!authors || !authors.length) return 'Unknown Author'
+  return authors.map(a => typeof a === 'string' ? a : (a.name || '')).filter(Boolean).join(', ') || 'Unknown Author'
+}
 </script>
