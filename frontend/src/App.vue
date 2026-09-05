@@ -175,6 +175,8 @@
         :book="selectedBook"
         @close="selectedBook = null"
         @read="openReader"
+        @update="onBookUpdated"
+        @delete="onBookDeleted"
       />
 
       <!-- Web Reader View -->
@@ -341,6 +343,38 @@ function onAuthSuccess() {
 
 function onBooksUploaded() {
   loadData(1, false)
+}
+
+function onBookUpdated(updatedBook) {
+  const idx = books.value.findIndex(b => b.id === updatedBook.id)
+  if (idx !== -1) {
+    const prev = books.value[idx]
+    books.value[idx] = {
+      ...prev,
+      ...updatedBook,
+      authors: updatedBook.authors?.map(a => typeof a === 'string' ? a : a.name) || []
+    }
+  }
+
+  const cIdx = continueBooks.value.findIndex(b => b.book_id === updatedBook.id)
+  if (cIdx !== -1) {
+    continueBooks.value[cIdx].title = updatedBook.title
+    continueBooks.value[cIdx].authors = updatedBook.authors?.map(a => typeof a === 'string' ? a : a.name) || []
+  }
+
+  selectedBook.value = {
+    ...updatedBook,
+    authors: updatedBook.authors?.map(a => typeof a === 'string' ? a : a.name) || []
+  }
+}
+
+function onBookDeleted(bookId) {
+  books.value = books.value.filter(b => b.id !== bookId)
+  continueBooks.value = continueBooks.value.filter(b => b.book_id !== bookId)
+  if (totalBooks.value > 0) {
+    totalBooks.value--
+  }
+  selectedBook.value = null
 }
 
 watch(isAuthenticated, (newVal) => {

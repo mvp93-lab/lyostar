@@ -82,6 +82,18 @@ type BookDetailResponse struct {
 	UpdatedAt   string            `json:"updated_at"`
 }
 
+// UpdateBookMetadataRequest represents payload for updating book metadata.
+type UpdateBookMetadataRequest struct {
+	Title       string   `json:"title"`
+	Authors     []string `json:"authors"`
+	Description string   `json:"description"`
+	Publisher   string   `json:"publisher"`
+	Language    string   `json:"language"`
+	PubDate     string   `json:"pub_date"`
+	Series      string   `json:"series"`
+	SeriesIndex float64  `json:"series_index"`
+}
+
 // AuthorRoleItem represents an author with their contribution role.
 type AuthorRoleItem struct {
 	ID   int64  `json:"id"`
@@ -446,6 +458,171 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					}
 					w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 					http.ServeFile(w, r, b.FilePath)
+				})
+
+				// PUT /api/books/{id} (Update book metadata, requires can_edit)
+				book.With(RequireEdit).Put("/", func(w http.ResponseWriter, r *http.Request) {
+					id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+					if err != nil {
+						writeError(w, http.StatusBadRequest, "invalid book id")
+						return
+					}
+
+					_, err = cfg.DB.GetBookByID(r.Context(), id)
+					if err != nil {
+						if errors.Is(err, sql.ErrNoRows) {
+							writeError(w, http.StatusNotFound, "book not found")
+							return
+						}
+						writeError(w, http.StatusInternalServerError, "database error")
+						return
+					}
+
+					var req UpdateBookMetadataRequest
+					if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+						writeError(w, http.StatusBadRequest, "invalid json payload")
+						return
+					}
+
+					req.Title = strings.TrimSpace(req.Title)
+					if req.Title == "" {
+						writeError(w, http.StatusBadRequest, "title cannot be empty")
+						return
+					}
+
+					updatedBook, err := cfg.DB.UpdateBookMetadata(r.Context(), database.UpdateBookMetadataParams{
+						ID:          id,
+						Title:       req.Title,
+						Description: strings.TrimSpace(req.Description),
+						Publisher:   strings.TrimSpace(req.Publisher),
+						Language:    strings.TrimSpace(req.Language),
+						PubDate:     strings.TrimSpace(req.PubDate),
+						Series:      strings.TrimSpace(req.Series),
+						SeriesIndex: req.SeriesIndex,
+					})
+					if err != nil {
+						writeError(w, http.StatusInternalServerError, "failed to update book metadata")
+						return
+					}
+
+					if req.Authors != nil {
+						if err := cfg.DB.ClearBookAuthors(r.Context(), id); err != nil {
+							writeError(w, http.StatusInternalServerError, "failed to update book authors")
+							return
+						}
+						for _, authorName := range req.Authors {
+							trimmed := strings.TrimSpace(authorName)
+							if trimmed == "" {
+								continue
+							}
+							author, err := cfg.DB.CreateAuthor(r.Context(), trimmed)
+							if err != nil {
+								continue
+							}
+							_ = cfg.DB.AddBookAuthor(r.Context(), database.AddBookAuthorParams{
+								BookID:   id,
+								AuthorID: author.ID,
+								Role:     "aut",
+							})
+						}
+					}
+
+					authorRows, err := cfg.DB.GetAuthorsForBook(r.Context(), id)
+					if err != nil {
+						writeError(w, http.StatusInternalServerError, "failed to fetch authors")
+						return
+					}
+
+					authors := make([]AuthorRoleItem, 0, len(authorRows))
+					for _, ar := range authorRows {
+						authors = append(authors, AuthorRoleItem{
+							ID:   ar.ID,
+							Name: ar.Name,
+							Role: ar.Role,
+						})
+					}
+
+					hasCover := updatedBook.CoverPath != ""
+					var coverURL string
+					if hasCover {
+						coverURL = fmt.Sprintf("/api/books/%d/cover", updatedBook.ID)
+					}
+
+					var userProgress float64
+					var isFinished bool
+					if u := auth.GetUser(r.Context()); u != nil {
+						if prog, err := cfg.DB.GetProgress(r.Context(), database.GetProgressParams{UserID: u.ID, BookID: updatedBook.ID}); err == nil {
+							userProgress = prog.Progress
+							isFinished = prog.IsFinished == 1
+						}
+					}
+
+					writeJSON(w, http.StatusOK, BookDetailResponse{
+						ID:          updatedBook.ID,
+						Title:       updatedBook.Title,
+						Authors:     authors,
+						Description: updatedBook.Description,
+						Publisher:   updatedBook.Publisher,
+						Language:    updatedBook.Language,
+						PubDate:     updatedBook.PubDate,
+						Series:      updatedBook.Series,
+						SeriesIndex: updatedBook.SeriesIndex,
+						FileSize:    updatedBook.FileSize,
+						Format:      updatedBook.Format,
+						HasCover:    hasCover,
+						CoverURL:    coverURL,
+						FileURL:     fmt.Sprintf("/api/books/%d/file", updatedBook.ID),
+						DownloadURL: fmt.Sprintf("/api/books/%d/download", updatedBook.ID),
+						Progress:    userProgress,
+						IsFinished:  isFinished,
+						CreatedAt:   formatTime(updatedBook.CreatedAt),
+						UpdatedAt:   formatTime(updatedBook.UpdatedAt),
+					})
+				})
+
+				// DELETE /api/books/{id} (Delete book from library, requires can_delete)
+				book.With(RequireDelete).Delete("/", func(w http.ResponseWriter, r *http.Request) {
+					id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+					if err != nil {
+						writeError(w, http.StatusBadRequest, "invalid book id")
+						return
+					}
+
+					b, err := cfg.DB.GetBookByID(r.Context(), id)
+					if err != nil {
+						if errors.Is(err, sql.ErrNoRows) {
+							writeError(w, http.StatusNotFound, "book not found")
+							return
+						}
+						writeError(w, http.StatusInternalServerError, "database error")
+						return
+					}
+
+					if err := cfg.DB.DeleteBook(r.Context(), id); err != nil {
+						writeError(w, http.StatusInternalServerError, "failed to delete book")
+						return
+					}
+
+					// Remove cover thumbnail cache file if exists
+					if b.CoverPath != "" {
+						_ = os.Remove(b.CoverPath)
+					}
+
+					// Strictly read-only policy:
+					// ONLY remove file on disk if it was uploaded to UploadsDir!
+					// Files in /books are strictly read-only and preserved on disk.
+					if cfg.UploadsDir != "" && b.FilePath != "" {
+						rel, err := filepath.Rel(cfg.UploadsDir, b.FilePath)
+						if err == nil && !strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel) {
+							_ = os.Remove(b.FilePath)
+						}
+					}
+
+					writeJSON(w, http.StatusOK, map[string]any{
+						"status":  "deleted",
+						"id":      id,
+						"message": "Book deleted successfully",
+					})
 				})
 			})
 		})

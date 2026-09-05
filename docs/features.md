@@ -7,7 +7,7 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
 ## 📊 Tổng quan tiến độ
 
 - **Core MVP / Hạ tầng cốt lõi**: `100% Hoàn thành`
-- **Quét thư viện & Quản lý Metadata**: `80% Hoàn thành`
+- **Quét thư viện & Quản lý Metadata**: `90% Hoàn thành`
 - **Trình đọc sách (Web Readers)**: `75% Hoàn thành`
 - **Duyệt & Tổ chức thư viện**: `65% Hoàn thành`
 - **Quản lý người dùng & Bảo mật**: `95% Hoàn thành`
@@ -87,9 +87,13 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
 - [x] **Cover Thumbnail Pipeline**:
   - [x] Resize bìa sách và chuyển mã sang chuẩn **WebP** (chiều rộng tối đa 400px).
   - [x] Lưu cache bìa sách tại `/data/cache/covers/{file_sha256}.webp`.
-- [ ] **Chỉnh sửa Metadata trên Web (Metadata Editor)**:
-  - [ ] Cho phép Admin sửa tiêu đề, tác giả, mô tả, series, tags trực tiếp từ giao diện web.
-  - [ ] Dữ liệu sửa được lưu trong SQLite (không ghi đè file sách gốc).
+- [x] **Chỉnh sửa Metadata trên Web (Metadata Editor)**:
+  - [x] Cho phép người dùng có quyền `can_edit` (hoặc Admin) sửa tiêu đề, tác giả, mô tả, series, tập số (#), NXB, ngày phát hành, ngôn ngữ trực tiếp từ giao diện web.
+  - [x] Dữ liệu sửa được lưu trong SQLite và tự động đồng bộ tìm kiếm toàn văn FTS5 (không ghi đè file sách gốc).
+- [x] **Xóa sách (Delete Book)**:
+  - [x] Cho phép người dùng có quyền `can_delete` (hoặc Admin) xóa sách khỏi thư viện với hộp thoại xác nhận an toàn.
+  - [x] Tự động cascade dọn dẹp tiến độ đọc, quan hệ tác giả, thumbnail WebP và chỉ mục FTS5.
+  - [x] Tuân thủ nghiêm ngặt quy tắc lưu trữ: File thuộc `/data/uploads/` được xóa khỏi đĩa; file thuộc `/books/` luôn được bảo toàn an toàn (STRICTLY READ-ONLY).
 - [x] **Upload sách mới qua Web UI**:
   - [x] Cho phép tải file `.epub`, `.pdf` lên trực tiếp từ trình duyệt qua kéo thả (Drag & Drop) hoặc duyệt file.
   - [x] Lưu trữ an toàn trong thư mục `/data/uploads/` (đảm bảo thư mục `/books` luôn STRICTLY READ-ONLY).
@@ -116,8 +120,8 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
 - [x] **Hệ thống phân quyền chi tiết (Granular User Permissions - Calibre-Web model)**:
   - [x] Các cờ quyền độc lập: Đọc online (`can_read`), Tải sách (`can_download`), Tải lên (`can_upload`), Chỉnh sửa (`can_edit`), Xóa sách (`can_delete`).
   - [x] Admin có thể tùy chỉnh quyền cho bất kỳ người dùng nào hoặc chính tài khoản của mình qua `PUT /api/users/{id}`.
-  - [x] Bảo vệ endpoint backend: `/api/books/{id}/file` (kiểm tra `can_read`), `/api/books/{id}/download` (kiểm tra `can_download`).
-  - [x] Giao diện người dùng: Huy hiệu quyền hạn trực quan, modal chỉnh sửa tài khoản và ẩn/hiện nút Đọc / Tải linh hoạt theo quyền tài khoản.
+  - [x] Bảo vệ endpoint backend: `/api/books/{id}/file` (`can_read`), `/api/books/{id}/download` (`can_download`), `/api/books/upload` (`can_upload`), `/api/books/{id}` PUT (`can_edit`), `/api/books/{id}` DELETE (`can_delete`).
+  - [x] Giao diện người dùng: Huy hiệu quyền hạn trực quan, modal chỉnh sửa tài khoản và ẩn/hiện nút Đọc / Tải / Sửa / Xóa linh hoạt theo quyền tài khoản.
 - [ ] **Giới hạn nội dung theo User (Content Restrictions)**:
   - [ ] Giới hạn sách hiển thị cho từng user theo Tag/Thể loại hoặc độ tuổi.
 - [ ] **Đăng ký mở (Public Registration Toggle)**:

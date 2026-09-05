@@ -34,6 +34,19 @@ SELECT COUNT(*) FROM books;
 DELETE FROM books
 WHERE id = ?;
 
+-- name: UpdateBookMetadata :one
+UPDATE books
+SET title = ?,
+    description = ?,
+    publisher = ?,
+    language = ?,
+    pub_date = ?,
+    series = ?,
+    series_index = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING *;
+
 -- name: CreateAuthor :one
 INSERT INTO authors (name)
 VALUES (?)

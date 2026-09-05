@@ -65,3 +65,29 @@ export async function uploadBook(file) {
   }
   return data
 }
+
+export async function updateBookMetadata(bookId, payload) {
+  const res = await fetch(`/api/books/${bookId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data.error || `Update failed with status ${res.status}`)
+  }
+  return data
+}
+
+export async function deleteBook(bookId) {
+  const res = await fetch(`/api/books/${bookId}`, {
+    method: 'DELETE'
+  })
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data.error || `Delete failed with status ${res.status}`)
+  }
+  return data
+}
