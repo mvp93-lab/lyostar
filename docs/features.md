@@ -66,11 +66,16 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
   - [x] Nhóm MANAGEMENT: Upload sách (`can_upload`), Quản lý Users (Admin), Quét lại thư viện (Admin), Đăng xuất.
 - [x] **Web Routing & Deep-Linking (Chuẩn Calibre-Web)**:
   - [x] Tích hợp `vue-router` chuẩn HTML5 History mode không băm (`#`), đồng bộ 2 chiều giữa URL trình duyệt và trạng thái hiển thị.
-  - [x] Hỗ trợ URL cho từng tính năng: `/books`, `/continue-reading`, `/tags`, `/tags/:tag`, `/shelves/:id`, `/read/:id`, `/book/:id`, `/search?q=...`, `/users`, `/upload`, `/login`, `/setup`.
-  - [x] Deep-linking trực tiếp vào trình đọc sách (`/read/:id`) và chi tiết sách (`/book/:id`), tải thông tin độc lập khi mở link mới hoặc F5.
+  - [x] Hỗ trợ URL cho từng tính năng: `/books`, `/continue-reading`, `/tags`, `/tags/:tag`, `/shelves/:id`, `/read/:id`, `/books/:id`, `/search?q=...`, `/users`, `/upload`, `/login`, `/setup`.
+  - [x] Deep-linking trực tiếp vào trình đọc sách (`/read/:id`) và chuyên trang chi tiết sách (`/books/:id`), tải thông tin độc lập khi mở link mới hoặc F5.
   - [x] Hỗ trợ hoàn hảo nút Back / Forward và phím tắt lịch sử của trình duyệt.
 - [x] **Lọc & Sắp xếp cơ bản**: Sắp xếp theo Tên sách, Tác giả, Thời gian thêm mới.
-- [x] **Xem chi tiết sách (Book Detail Modal)**: Hiển thị bìa, mô tả, nhà xuất bản, ngày xuất bản, định dạng file, kích thước.
+- [x] **Chuyên trang Chi tiết sách (BookDetailView - Chuẩn Calibre-Web)**:
+  - [x] Chuyển đổi từ dạng Modal giới hạn sang Chuyên trang độc lập tại `/books/:id` với breadcrumbs điều hướng tiện lợi.
+  - [x] Bố cục 2 cột đặc trưng Calibre-Web: Cột trái hiển thị bìa lớn nổi bật, các nút thao tác chính (Đọc sách, Tải về, Thêm vào kệ) và thông số kỹ thuật (Định dạng, Dung lượng, Ngày thêm, Mã SHA-256).
+  - [x] Cột phải hiển thị tiêu đề, tác giả, series, tập số, tags phân loại, tóm tắt/nội dung toàn văn tự nhiên (không bị cuộn lồng nhau) và bảng thông tin xuất bản chi tiết.
+  - [x] Tích hợp trình biên tập Metadata trực tiếp trên trang (In-page Metadata Editor) cho user có quyền `can_edit` với gợi ý tag thông minh.
+  - [x] Xác nhận xóa sách an toàn với quyền `can_delete`, tự động điều hướng về lại thư viện sau khi xóa.
 - [x] **Tải sách về máy (Direct Download)**: Nút tải file EPUB/PDF gốc về máy cá nhân.
 - [x] **Kệ sách tùy chỉnh của User (Custom Shelves / Collections)**:
   - [x] Cho phép người dùng tự tạo, chỉnh sửa, xóa kệ sách cá nhân (ví dụ: *"Sách yêu thích"*, *"Muốn đọc"*, *"Học kỹ thuật"*).

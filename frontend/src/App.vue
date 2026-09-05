@@ -52,8 +52,18 @@
             @open-upload="showUploadModal = true"
           />
 
+          <!-- Dedicated Book Detail Page (Calibre-Web Style) -->
+          <BookDetailView
+            v-if="route.name === 'book-detail'"
+            :book-id="route.params.id"
+            @read="openReader"
+            @filter-tag="handleSelectTag"
+            @shelf-updated="onShelfUpdated"
+            @deleted="onBookDeleted"
+          />
+
           <!-- Main Shelf Content -->
-          <main class="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 sm:py-8">
+          <main v-else class="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 sm:py-8">
             <!-- Section Header -->
             <div class="flex items-center justify-between mb-6">
               <div>
@@ -352,17 +362,6 @@
         </div>
       </div>
 
-      <!-- Book Details Modal -->
-      <BookDetailModal
-        v-if="selectedBook"
-        :book="selectedBook"
-        @close="closeBookDetail"
-        @read="openReader"
-        @update="onBookUpdated"
-        @delete="onBookDeleted"
-        @filter-tag="handleSelectTag"
-        @shelf-updated="onShelfUpdated"
-      />
 
       <!-- Web Reader View -->
       <ReaderView
@@ -440,7 +439,7 @@ import { Loader2, BookX, BookOpen, Tag, X, Bookmark, Check, AlertCircle } from '
 import Sidebar from './components/Sidebar.vue'
 import Navbar from './components/Navbar.vue'
 import BookCard from './components/BookCard.vue'
-import BookDetailModal from './components/BookDetailModal.vue'
+import BookDetailView from './components/BookDetailView.vue'
 import ReaderView from './components/ReaderView.vue'
 import SetupView from './components/SetupView.vue'
 import LoginView from './components/LoginView.vue'
@@ -484,7 +483,6 @@ const scanMessage = ref('')
 const searchQuery = ref('')
 const isSearching = computed(() => searchQuery.value.trim() !== '')
 
-const selectedBook = ref(null)
 const readingBook = ref(null)
 const showUsersModal = ref(false)
 const showUploadModal = ref(false)
@@ -579,21 +577,9 @@ async function syncFromRoute(r = route) {
     readingBook.value = null
   }
 
-  // 3. Book detail modal (/books/:id)
+  // 3. Book detail page (/books/:id) handled by BookDetailView component
   if (name === 'book-detail') {
-    const bookId = Number(params.id)
-    if (!selectedBook.value || selectedBook.value.id !== bookId) {
-      try {
-        const b = await fetchBookDetail(bookId)
-        selectedBook.value = b
-      } catch (err) {
-        console.error('Failed to load book detail:', err)
-        router.replace('/books')
-        return
-      }
-    }
-  } else {
-    selectedBook.value = null
+    return
   }
 
   // 4. Content navigation
@@ -731,24 +717,11 @@ async function handleScan() {
 }
 
 function openBookDetail(book) {
-  selectedBook.value = book
   router.push(`/books/${book.id}`)
-}
-
-function closeBookDetail() {
-  selectedBook.value = null
-  if (route.name === 'book-detail') {
-    if (window.history.length > 1) {
-      router.back()
-    } else {
-      router.push('/books')
-    }
-  }
 }
 
 function openReader(book) {
   if (!canRead.value) return
-  selectedBook.value = null
   readingBook.value = book
   router.push(`/read/${book.id}`)
 }
@@ -830,11 +803,6 @@ function onBookUpdated(updatedBook) {
     continueBooks.value[cIdx].authors = updatedBook.authors?.map(a => typeof a === 'string' ? a : a.name) || []
   }
 
-  selectedBook.value = {
-    ...updatedBook,
-    authors: updatedBook.authors?.map(a => typeof a === 'string' ? a : a.name) || []
-  }
-
   loadTags()
   loadShelves()
 }
@@ -845,7 +813,9 @@ function onBookDeleted(bookId) {
   if (totalBooks.value > 0) {
     totalBooks.value--
   }
-  closeBookDetail()
+  if (route.name === 'book-detail') {
+    router.replace('/books')
+  }
   loadTags()
   loadShelves()
 }
@@ -866,7 +836,6 @@ watch(isAuthenticated, async (newVal) => {
     selectedTag.value = ''
     selectedShelf.value = null
     totalBooks.value = 0
-    selectedBook.value = null
     readingBook.value = null
     showUsersModal.value = false
     showUploadModal.value = false
