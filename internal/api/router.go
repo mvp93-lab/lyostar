@@ -732,6 +732,114 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						"message": "Book deleted successfully",
 					})
 				})
+
+				// GET /api/books/{id}/shelves: List shelf IDs this book belongs to for current user
+				book.Get("/shelves", func(w http.ResponseWriter, r *http.Request) {
+					user := auth.GetUser(r.Context())
+					if user == nil {
+						writeError(w, http.StatusUnauthorized, "unauthorized")
+						return
+					}
+
+					id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+					if err != nil {
+						writeError(w, http.StatusBadRequest, "invalid book id")
+						return
+					}
+
+					shelfIDs, err := cfg.DB.GetBookShelfIDsForUser(r.Context(), database.GetBookShelfIDsForUserParams{
+						BookID: id,
+						UserID: user.ID,
+					})
+					if err != nil {
+						writeError(w, http.StatusInternalServerError, "failed to query book shelves")
+						return
+					}
+					if shelfIDs == nil {
+						shelfIDs = []int64{}
+					}
+
+					writeJSON(w, http.StatusOK, shelfIDs)
+				})
+
+				// PUT /api/books/{id}/shelves: Batch update user shelves this book belongs to
+				book.Put("/shelves", func(w http.ResponseWriter, r *http.Request) {
+					user := auth.GetUser(r.Context())
+					if user == nil {
+						writeError(w, http.StatusUnauthorized, "unauthorized")
+						return
+					}
+
+					id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+					if err != nil {
+						writeError(w, http.StatusBadRequest, "invalid book id")
+						return
+					}
+
+					if _, err := cfg.DB.GetBookByID(r.Context(), id); err != nil {
+						if errors.Is(err, sql.ErrNoRows) {
+							writeError(w, http.StatusNotFound, "book not found")
+							return
+						}
+						writeError(w, http.StatusInternalServerError, "failed to query book")
+						return
+					}
+
+					var body UpdateBookShelvesRequest
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+						writeError(w, http.StatusBadRequest, "invalid request body")
+						return
+					}
+
+					userShelves, err := cfg.DB.ListShelvesForUser(r.Context(), user.ID)
+					if err != nil {
+						writeError(w, http.StatusInternalServerError, "failed to list shelves")
+						return
+					}
+
+					ownedMap := make(map[int64]bool)
+					for _, s := range userShelves {
+						if s.UserID == user.ID {
+							ownedMap[s.ID] = true
+						}
+					}
+
+					targetSet := make(map[int64]bool)
+					for _, sid := range body.ShelfIDs {
+						if ownedMap[sid] {
+							targetSet[sid] = true
+						}
+					}
+
+					for sid := range ownedMap {
+						if targetSet[sid] {
+							_ = cfg.DB.AddBookToShelf(r.Context(), database.AddBookToShelfParams{
+								ShelfID: sid,
+								BookID:  id,
+							})
+						} else {
+							_ = cfg.DB.RemoveBookFromShelf(r.Context(), database.RemoveBookFromShelfParams{
+								ShelfID: sid,
+								BookID:  id,
+							})
+						}
+					}
+
+					shelfIDs, _ := cfg.DB.GetBookShelfIDsForUser(r.Context(), database.GetBookShelfIDsForUserParams{
+						BookID: id,
+						UserID: user.ID,
+					})
+					if shelfIDs == nil {
+						shelfIDs = []int64{}
+					}
+
+					writeJSON(w, http.StatusOK, shelfIDs)
+				})
+			})
+
+			// Shelves endpoints (/api/shelves/*)
+			protected.Route("/shelves", func(shelves chi.Router) {
+				RegisterShelfRoutes(shelves, cfg.DB.Queries)
 			})
 		})
 

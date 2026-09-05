@@ -101,3 +101,84 @@ export async function deleteBook(bookId) {
   }
   return data
 }
+
+export async function fetchShelves() {
+  const res = await fetch('/api/shelves')
+  if (!res.ok) throw new Error(`Failed to fetch shelves`)
+  return res.json()
+}
+
+export async function createShelf({ name, description = '', is_public = false }) {
+  const res = await fetch('/api/shelves', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description, is_public })
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Failed to create shelf')
+  return data
+}
+
+export async function updateShelf(id, { name, description = '', is_public = false }) {
+  const res = await fetch(`/api/shelves/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description, is_public })
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Failed to update shelf')
+  return data
+}
+
+export async function deleteShelf(id) {
+  const res = await fetch(`/api/shelves/${id}`, {
+    method: 'DELETE'
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Failed to delete shelf')
+  return data
+}
+
+export async function fetchShelfBooks(shelfId, { page = 1, limit = 24 } = {}) {
+  const res = await fetch(`/api/shelves/${shelfId}/books?page=${page}&limit=${limit}`)
+  if (!res.ok) throw new Error('Failed to fetch books in shelf')
+  return res.json()
+}
+
+export async function addBookToShelf(shelfId, bookId) {
+  const res = await fetch(`/api/shelves/${shelfId}/books`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ book_id: bookId })
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Failed to add book to shelf')
+  return data
+}
+
+export async function removeBookFromShelf(shelfId, bookId) {
+  const res = await fetch(`/api/shelves/${shelfId}/books/${bookId}`, {
+    method: 'DELETE'
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Failed to remove book from shelf')
+  return data
+}
+
+export async function fetchBookShelves(bookId) {
+  const res = await fetch(`/api/books/${bookId}/shelves`)
+  if (!res.ok) throw new Error('Failed to fetch book shelves')
+  return res.json()
+}
+
+export async function updateBookShelves(bookId, shelfIds) {
+  const res = await fetch(`/api/books/${bookId}/shelves`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ shelf_ids: shelfIds })
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Failed to update book shelves')
+  return data
+}
+

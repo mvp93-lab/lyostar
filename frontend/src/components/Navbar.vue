@@ -42,6 +42,16 @@
 
       <!-- Actions & Profile -->
       <div class="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
+        <!-- Shelves button -->
+        <button
+          @click="$emit('open-shelves')"
+          class="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-medium bg-[#11131b] hover:bg-[#161923] border border-white/[0.08] text-slate-300 hover:text-white transition-all cursor-pointer"
+          title="Custom Shelves & Collections"
+        >
+          <Bookmark class="w-3.5 h-3.5 text-glacier-400" />
+          <span class="hidden md:inline">Shelves</span>
+        </button>
+
         <!-- Upload button (requires can_upload) -->
         <button
           v-if="canUpload"
@@ -108,7 +118,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { BookOpen, Search, X, RefreshCw, Users, LogOut, Upload } from 'lucide-vue-next'
+import { BookOpen, Search, X, RefreshCw, Users, LogOut, Upload, Bookmark } from 'lucide-vue-next'
 import { useAuth } from '../composables/useAuth'
 
 const props = defineProps({
@@ -118,7 +128,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['search', 'scan', 'reset', 'open-users', 'open-upload'])
+const emit = defineEmits(['search', 'scan', 'reset', 'open-users', 'open-upload', 'open-shelves'])
 
 const { user, isAdmin, canUpload, logout } = useAuth()
 const searchQuery = ref('')

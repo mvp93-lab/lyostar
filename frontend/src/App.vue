@@ -28,6 +28,7 @@
         @reset="resetView"
         @open-users="showUsersModal = true"
         @open-upload="showUploadModal = true"
+        @open-shelves="showShelvesModal = true"
       />
 
       <!-- Main Shelf Content -->
@@ -37,10 +38,20 @@
           <div>
             <div class="flex items-center gap-3">
               <h1 class="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                {{ isSearching ? `Search Results for "${searchQuery}"` : (selectedTag ? `Category: #${selectedTag}` : 'Library Shelf') }}
+                {{ isSearching ? `Search Results for "${searchQuery}"` : (selectedShelf ? `Shelf: ${selectedShelf.name}` : (selectedTag ? `Category: #${selectedTag}` : 'Library Shelf')) }}
               </h1>
               <button
-                v-if="selectedTag"
+                v-if="selectedShelf"
+                @click="clearShelfFilter"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-glacier-500/15 text-glacier-300 border border-glacier-400/30 hover:bg-glacier-500/25 transition-colors cursor-pointer"
+                title="Clear shelf filter"
+              >
+                <Bookmark class="w-3 h-3 text-glacier-400" />
+                <span>{{ selectedShelf.name }}</span>
+                <X class="w-3 h-3 text-glacier-400" />
+              </button>
+              <button
+                v-else-if="selectedTag"
                 @click="clearTagFilter"
                 class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-glacier-500/15 text-glacier-300 border border-glacier-400/30 hover:bg-glacier-500/25 transition-colors cursor-pointer"
                 title="Clear tag filter"
@@ -50,7 +61,7 @@
               </button>
             </div>
             <p class="text-xs text-slate-400 mt-1">
-              {{ totalBooks }} {{ totalBooks === 1 ? 'book' : 'books' }} available
+              {{ totalBooks }} {{ totalBooks === 1 ? 'book' : 'books' }} {{ selectedShelf ? 'in this shelf' : 'available' }}
             </p>
           </div>
 
@@ -65,7 +76,7 @@
         </div>
 
         <!-- Tag Filter Pills Bar -->
-        <div v-if="!isSearching && tags.length > 0" class="mb-6 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+        <div v-if="!isSearching && !selectedShelf && tags.length > 0" class="mb-6 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
           <button
             @click="clearTagFilter"
             class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer border"
@@ -79,7 +90,7 @@
             v-for="t in tags"
             :key="t.id"
             @click="handleSelectTag(t.name === selectedTag ? '' : t.name)"
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer border"
+            class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer border"
             :class="selectedTag === t.name 
               ? 'bg-glacier-500/20 text-glacier-300 border-glacier-400/40 shadow-sm' 
               : 'bg-[#11131b] hover:bg-[#161923] text-slate-400 hover:text-slate-200 border-white/[0.08] hover:border-white/[0.15]'"
@@ -90,8 +101,8 @@
           </button>
         </div>
 
-        <!-- Continue Reading Section (Only when not searching, not filtering by tag & has in-progress books) -->
-        <div v-if="!isSearching && !selectedTag && continueBooks.length > 0" class="mb-10 animate-fade-in">
+        <!-- Continue Reading Section (Only when not searching, not filtering by tag/shelf & has in-progress books) -->
+        <div v-if="!isSearching && !selectedTag && !selectedShelf && continueBooks.length > 0" class="mb-10 animate-fade-in">
           <div class="flex items-center gap-2 mb-3.5">
             <span class="w-2 h-2 rounded-full bg-glacier-400"></span>
             <h2 class="text-sm sm:text-base font-bold text-white tracking-tight">
@@ -164,13 +175,20 @@
             <BookX class="w-8 h-8" />
           </div>
           <h3 class="text-base font-semibold text-white mb-1">
-            {{ isSearching ? 'No books found matching your search' : (selectedTag ? `No books found with tag #${selectedTag}` : 'No books in library yet') }}
+            {{ isSearching ? 'No books found matching your search' : (selectedShelf ? `No books found in shelf "${selectedShelf.name}"` : (selectedTag ? `No books found with tag #${selectedTag}` : 'No books in library yet')) }}
           </h3>
           <p class="text-xs text-slate-400 max-w-sm mb-6">
-            {{ isSearching ? 'Try adjusting your search terms or keywords.' : (selectedTag ? 'Try selecting another genre or clear the active filter.' : 'Add .epub or .pdf files into your books directory and click Rescan.') }}
+            {{ isSearching ? 'Try adjusting your search terms or keywords.' : (selectedShelf ? 'Add books to this shelf using the "Add to Shelf" button on book cards or detail view.' : (selectedTag ? 'Try selecting another genre or clear the active filter.' : 'Add .epub or .pdf files into your books directory and click Rescan.')) }}
           </p>
           <button
-            v-if="selectedTag"
+            v-if="selectedShelf"
+            @click="clearShelfFilter"
+            class="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white text-xs font-medium transition-all cursor-pointer"
+          >
+            Back to All Books
+          </button>
+          <button
+            v-else-if="selectedTag"
             @click="clearTagFilter"
             class="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white text-xs font-medium transition-all cursor-pointer"
           >
@@ -198,6 +216,7 @@
             @select="selectedBook = book"
             @read="openReader(book)"
             @filter-tag="handleSelectTag"
+            @open-shelf="b => shelfSelectBook = b"
           />
         </div>
 
@@ -223,6 +242,7 @@
         @update="onBookUpdated"
         @delete="onBookDeleted"
         @filter-tag="handleSelectTag"
+        @shelf-updated="onShelfUpdated"
       />
 
       <!-- Web Reader View -->
@@ -245,13 +265,28 @@
         @close="showUploadModal = false"
         @uploaded="onBooksUploaded"
       />
+
+      <!-- Shelves Management Modal -->
+      <ShelvesManageModal
+        v-if="showShelvesModal"
+        @close="showShelvesModal = false"
+        @select-shelf="handleSelectShelf"
+      />
+
+      <!-- Quick Shelf Select Modal -->
+      <ShelfSelectModal
+        v-if="shelfSelectBook"
+        :book="shelfSelectBook"
+        @close="shelfSelectBook = null"
+        @updated="onShelfUpdated"
+      />
     </template>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { Loader2, BookX, BookOpen, Tag, X } from 'lucide-vue-next'
+import { Loader2, BookX, BookOpen, Tag, X, Bookmark } from 'lucide-vue-next'
 import Navbar from './components/Navbar.vue'
 import BookCard from './components/BookCard.vue'
 import BookDetailModal from './components/BookDetailModal.vue'
@@ -260,7 +295,9 @@ import SetupView from './components/SetupView.vue'
 import LoginView from './components/LoginView.vue'
 import UsersModal from './components/UsersModal.vue'
 import UploadModal from './components/UploadModal.vue'
-import { fetchBooks, searchBooks, triggerScan, fetchContinueReading, fetchTags } from './api/client.js'
+import ShelvesManageModal from './components/ShelvesManageModal.vue'
+import ShelfSelectModal from './components/ShelfSelectModal.vue'
+import { fetchBooks, searchBooks, triggerScan, fetchContinueReading, fetchTags, fetchShelfBooks } from './api/client.js'
 import { useAuth } from './composables/useAuth'
 
 const { isAuthenticated, isAdmin, setupRequired, loading: authLoading, checkAuth, canRead } = useAuth()
@@ -269,6 +306,7 @@ const books = ref([])
 const continueBooks = ref([])
 const tags = ref([])
 const selectedTag = ref('')
+const selectedShelf = ref(null)
 const totalBooks = ref(0)
 const currentPage = ref(1)
 const pageSize = 24
@@ -282,6 +320,8 @@ const selectedBook = ref(null)
 const readingBook = ref(null)
 const showUsersModal = ref(false)
 const showUploadModal = ref(false)
+const showShelvesModal = ref(false)
+const shelfSelectBook = ref(null)
 
 const hasMore = computed(() => books.value.length < totalBooks.value)
 
@@ -312,6 +352,8 @@ async function loadData(page = 1, append = false) {
     let res
     if (isSearching.value) {
       res = await searchBooks({ q: searchQuery.value, page, limit: pageSize })
+    } else if (selectedShelf.value) {
+      res = await fetchShelfBooks(selectedShelf.value.id, { page, limit: pageSize })
     } else {
       res = await fetchBooks({ page, limit: pageSize, tag: selectedTag.value })
       if (page === 1) {
@@ -336,8 +378,30 @@ async function loadData(page = 1, append = false) {
   }
 }
 
+function handleSelectShelf(shelf) {
+  selectedShelf.value = shelf
+  selectedTag.value = ''
+  searchQuery.value = ''
+  showShelvesModal.value = false
+  currentPage.value = 1
+  loadData(1, false)
+}
+
+function clearShelfFilter() {
+  selectedShelf.value = null
+  currentPage.value = 1
+  loadData(1, false)
+}
+
+function onShelfUpdated() {
+  if (selectedShelf.value) {
+    loadData(1, false)
+  }
+}
+
 function handleSelectTag(tag) {
   selectedTag.value = tag
+  selectedShelf.value = null
   searchQuery.value = ''
   currentPage.value = 1
   loadData(1, false)
@@ -345,6 +409,7 @@ function handleSelectTag(tag) {
 
 function clearTagFilter() {
   selectedTag.value = ''
+  selectedShelf.value = null
   currentPage.value = 1
   loadData(1, false)
 }
@@ -352,6 +417,7 @@ function clearTagFilter() {
 function handleSearch(query) {
   searchQuery.value = query
   selectedTag.value = ''
+  selectedShelf.value = null
   currentPage.value = 1
   loadData(1, false)
 }
@@ -359,6 +425,7 @@ function handleSearch(query) {
 function resetView() {
   searchQuery.value = ''
   selectedTag.value = ''
+  selectedShelf.value = null
   selectedBook.value = null
   readingBook.value = null
   loadData(1, false)
@@ -468,11 +535,14 @@ watch(isAuthenticated, (newVal) => {
     continueBooks.value = []
     tags.value = []
     selectedTag.value = ''
+    selectedShelf.value = null
     totalBooks.value = 0
     selectedBook.value = null
     readingBook.value = null
     showUsersModal.value = false
     showUploadModal.value = false
+    showShelvesModal.value = false
+    shelfSelectBook.value = null
   }
 })
 

@@ -9,7 +9,7 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
 - **Core MVP / Hạ tầng cốt lõi**: `100% Hoàn thành`
 - **Quét thư viện & Quản lý Metadata**: `90% Hoàn thành`
 - **Trình đọc sách (Web Readers)**: `75% Hoàn thành`
-- **Duyệt & Tổ chức thư viện**: `80% Hoàn thành`
+- **Duyệt & Tổ chức thư viện**: `95% Hoàn thành`
 - **Quản lý người dùng & Bảo mật**: `95% Hoàn thành`
 - **Kết nối thiết bị ngoài (OPDS / E-Reader)**: `0% Hoàn thành`
 
@@ -61,10 +61,12 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
 - [x] **Lọc & Sắp xếp cơ bản**: Sắp xếp theo Tên sách, Tác giả, Thời gian thêm mới.
 - [x] **Xem chi tiết sách (Book Detail Modal)**: Hiển thị bìa, mô tả, nhà xuất bản, ngày xuất bản, định dạng file, kích thước.
 - [x] **Tải sách về máy (Direct Download)**: Nút tải file EPUB/PDF gốc về máy cá nhân.
-- [ ] **Kệ sách tùy chỉnh của User (Custom Shelves / Collections)**:
-  - [ ] Cho phép người dùng tự tạo kệ sách cá nhân (ví dụ: *"Sách yêu thích"*, *"Muốn đọc"*, *"Học kỹ thuật"*).
-  - [ ] Thêm / bớt sách vào kệ sách tùy chỉnh.
-  - [ ] Tùy chọn kệ sách công khai (Public) hoặc riêng tư (Private).
+- [x] **Kệ sách tùy chỉnh của User (Custom Shelves / Collections)**:
+  - [x] Cho phép người dùng tự tạo, chỉnh sửa, xóa kệ sách cá nhân (ví dụ: *"Sách yêu thích"*, *"Muốn đọc"*, *"Học kỹ thuật"*).
+  - [x] Thêm / bớt sách vào kệ sách nhanh chóng qua hộp thoại 1-click checkbox modal (`ShelfSelectModal`) tương tự YouTube playlist & Calibre-Web.
+  - [x] Tùy chọn kệ sách công khai (Public) hoặc riêng tư (Private).
+  - [x] Modal quản lý kệ sách (`ShelvesManageModal`) xem danh sách, số lượng sách (`book_count`), huy hiệu sở hữu (`is_owner`).
+  - [x] Lọc thư viện theo kệ sách đang chọn trên giao diện chính, nút huy hiệu xóa bộ lọc nhanh để quay lại toàn bộ thư viện.
 - [x] **Phân loại theo Thể loại (Tags / Categories / Genres)**:
   - [x] Trích xuất trường `<dc:subject>` từ EPUB và `/Keywords` / XMP `Subject` từ PDF.
   - [x] Lưu trữ cấu trúc quan hệ `tags` & `book_tags` trong SQLite, truy vấn không trùng lặp qua subquery.

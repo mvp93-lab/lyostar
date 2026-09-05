@@ -43,6 +43,21 @@ func (q *Queries) AddBookTag(ctx context.Context, arg AddBookTagParams) error {
 	return err
 }
 
+const addBookToShelf = `-- name: AddBookToShelf :exec
+INSERT OR IGNORE INTO shelf_books (shelf_id, book_id)
+VALUES (?, ?)
+`
+
+type AddBookToShelfParams struct {
+	ShelfID int64 `json:"shelf_id"`
+	BookID  int64 `json:"book_id"`
+}
+
+func (q *Queries) AddBookToShelf(ctx context.Context, arg AddBookToShelfParams) error {
+	_, err := q.db.ExecContext(ctx, addBookToShelf, arg.ShelfID, arg.BookID)
+	return err
+}
+
 const clearBookAuthors = `-- name: ClearBookAuthors :exec
 DELETE FROM book_authors
 WHERE book_id = ?
@@ -69,6 +84,19 @@ SELECT COUNT(*) FROM books
 
 func (q *Queries) CountBooks(ctx context.Context) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countBooks)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countBooksByShelf = `-- name: CountBooksByShelf :one
+SELECT COUNT(*)
+FROM shelf_books
+WHERE shelf_id = ?
+`
+
+func (q *Queries) CountBooksByShelf(ctx context.Context, shelfID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countBooksByShelf, shelfID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -216,6 +244,39 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 	return i, err
 }
 
+const createShelf = `-- name: CreateShelf :one
+INSERT INTO shelves (user_id, name, description, is_public)
+VALUES (?, ?, ?, ?)
+RETURNING id, user_id, name, description, is_public, created_at, updated_at
+`
+
+type CreateShelfParams struct {
+	UserID      int64  `json:"user_id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	IsPublic    int64  `json:"is_public"`
+}
+
+func (q *Queries) CreateShelf(ctx context.Context, arg CreateShelfParams) (Shelf, error) {
+	row := q.db.QueryRowContext(ctx, createShelf,
+		arg.UserID,
+		arg.Name,
+		arg.Description,
+		arg.IsPublic,
+	)
+	var i Shelf
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.IsPublic,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createTag = `-- name: CreateTag :one
 INSERT INTO tags (name)
 VALUES (?)
@@ -308,6 +369,21 @@ WHERE token = ?
 
 func (q *Queries) DeleteSession(ctx context.Context, token string) error {
 	_, err := q.db.ExecContext(ctx, deleteSession, token)
+	return err
+}
+
+const deleteShelf = `-- name: DeleteShelf :exec
+DELETE FROM shelves
+WHERE id = ? AND user_id = ?
+`
+
+type DeleteShelfParams struct {
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
+}
+
+func (q *Queries) DeleteShelf(ctx context.Context, arg DeleteShelfParams) error {
+	_, err := q.db.ExecContext(ctx, deleteShelf, arg.ID, arg.UserID)
 	return err
 }
 
@@ -472,6 +548,41 @@ func (q *Queries) GetBookBySHA256(ctx context.Context, fileSha256 string) (Book,
 	return i, err
 }
 
+const getBookShelfIDsForUser = `-- name: GetBookShelfIDsForUser :many
+SELECT sb.shelf_id
+FROM shelf_books sb
+JOIN shelves s ON sb.shelf_id = s.id
+WHERE sb.book_id = ? AND s.user_id = ?
+`
+
+type GetBookShelfIDsForUserParams struct {
+	BookID int64 `json:"book_id"`
+	UserID int64 `json:"user_id"`
+}
+
+func (q *Queries) GetBookShelfIDsForUser(ctx context.Context, arg GetBookShelfIDsForUserParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, getBookShelfIDsForUser, arg.BookID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var shelf_id int64
+		if err := rows.Scan(&shelf_id); err != nil {
+			return nil, err
+		}
+		items = append(items, shelf_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProgress = `-- name: GetProgress :one
 SELECT user_id, book_id, location, progress, current_page, total_pages, is_finished, updated_at FROM reading_progress
 WHERE user_id = ? AND book_id = ? LIMIT 1
@@ -536,6 +647,51 @@ func (q *Queries) GetSessionWithUser(ctx context.Context, token string) (GetSess
 		&i.CanUpload,
 		&i.CanEdit,
 		&i.CanDelete,
+	)
+	return i, err
+}
+
+const getShelfByID = `-- name: GetShelfByID :one
+SELECT id, user_id, name, description, is_public, created_at, updated_at FROM shelves
+WHERE id = ? LIMIT 1
+`
+
+func (q *Queries) GetShelfByID(ctx context.Context, id int64) (Shelf, error) {
+	row := q.db.QueryRowContext(ctx, getShelfByID, id)
+	var i Shelf
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.IsPublic,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getShelfByNameAndUser = `-- name: GetShelfByNameAndUser :one
+SELECT id, user_id, name, description, is_public, created_at, updated_at FROM shelves
+WHERE user_id = ? AND name = ? LIMIT 1
+`
+
+type GetShelfByNameAndUserParams struct {
+	UserID int64  `json:"user_id"`
+	Name   string `json:"name"`
+}
+
+func (q *Queries) GetShelfByNameAndUser(ctx context.Context, arg GetShelfByNameAndUserParams) (Shelf, error) {
+	row := q.db.QueryRowContext(ctx, getShelfByNameAndUser, arg.UserID, arg.Name)
+	var i Shelf
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.IsPublic,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -715,6 +871,103 @@ func (q *Queries) ListBooks(ctx context.Context, arg ListBooksParams) ([]Book, e
 			&i.CoverPath,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBooksByShelfWithAuthorsAndProgress = `-- name: ListBooksByShelfWithAuthorsAndProgress :many
+SELECT
+    b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
+    b.description, b.publisher, b.language, b.pub_date, b.series,
+    b.series_index, b.cover_path, b.created_at, b.updated_at,
+    coalesce((SELECT GROUP_CONCAT(a.name, ', ') FROM book_authors ba JOIN authors a ON ba.author_id = a.id WHERE ba.book_id = b.id), '') as author_names,
+    coalesce((SELECT GROUP_CONCAT(t.name, ', ') FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = b.id), '') as tag_names,
+    coalesce(rp.progress, 0.0) as user_progress,
+    coalesce(rp.is_finished, 0) as user_is_finished,
+    sb.added_at as shelf_added_at
+FROM shelf_books sb
+JOIN books b ON sb.book_id = b.id
+LEFT JOIN reading_progress rp ON b.id = rp.book_id AND rp.user_id = ?
+WHERE sb.shelf_id = ?
+ORDER BY sb.added_at DESC
+LIMIT ? OFFSET ?
+`
+
+type ListBooksByShelfWithAuthorsAndProgressParams struct {
+	UserID  int64 `json:"user_id"`
+	ShelfID int64 `json:"shelf_id"`
+	Limit   int64 `json:"limit"`
+	Offset  int64 `json:"offset"`
+}
+
+type ListBooksByShelfWithAuthorsAndProgressRow struct {
+	ID             int64       `json:"id"`
+	Title          string      `json:"title"`
+	FilePath       string      `json:"file_path"`
+	FileSha256     string      `json:"file_sha256"`
+	FileSize       int64       `json:"file_size"`
+	Format         string      `json:"format"`
+	Description    string      `json:"description"`
+	Publisher      string      `json:"publisher"`
+	Language       string      `json:"language"`
+	PubDate        string      `json:"pub_date"`
+	Series         string      `json:"series"`
+	SeriesIndex    float64     `json:"series_index"`
+	CoverPath      string      `json:"cover_path"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
+	AuthorNames    interface{} `json:"author_names"`
+	TagNames       interface{} `json:"tag_names"`
+	UserProgress   float64     `json:"user_progress"`
+	UserIsFinished int64       `json:"user_is_finished"`
+	ShelfAddedAt   time.Time   `json:"shelf_added_at"`
+}
+
+func (q *Queries) ListBooksByShelfWithAuthorsAndProgress(ctx context.Context, arg ListBooksByShelfWithAuthorsAndProgressParams) ([]ListBooksByShelfWithAuthorsAndProgressRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBooksByShelfWithAuthorsAndProgress,
+		arg.UserID,
+		arg.ShelfID,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListBooksByShelfWithAuthorsAndProgressRow
+	for rows.Next() {
+		var i ListBooksByShelfWithAuthorsAndProgressRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.FilePath,
+			&i.FileSha256,
+			&i.FileSize,
+			&i.Format,
+			&i.Description,
+			&i.Publisher,
+			&i.Language,
+			&i.PubDate,
+			&i.Series,
+			&i.SeriesIndex,
+			&i.CoverPath,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AuthorNames,
+			&i.TagNames,
+			&i.UserProgress,
+			&i.UserIsFinished,
+			&i.ShelfAddedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1065,6 +1318,67 @@ func (q *Queries) ListRecentProgressByUserID(ctx context.Context, arg ListRecent
 	return items, nil
 }
 
+const listShelvesForUser = `-- name: ListShelvesForUser :many
+SELECT 
+    s.id, s.user_id, s.name, s.description, s.is_public, s.created_at, s.updated_at,
+    u.username as owner_username,
+    u.display_name as owner_display_name,
+    COUNT(sb.book_id) as book_count
+FROM shelves s
+JOIN users u ON s.user_id = u.id
+LEFT JOIN shelf_books sb ON s.id = sb.shelf_id
+WHERE s.user_id = ? OR s.is_public = 1
+GROUP BY s.id
+ORDER BY s.is_public ASC, s.name ASC
+`
+
+type ListShelvesForUserRow struct {
+	ID               int64     `json:"id"`
+	UserID           int64     `json:"user_id"`
+	Name             string    `json:"name"`
+	Description      string    `json:"description"`
+	IsPublic         int64     `json:"is_public"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	OwnerUsername    string    `json:"owner_username"`
+	OwnerDisplayName string    `json:"owner_display_name"`
+	BookCount        int64     `json:"book_count"`
+}
+
+func (q *Queries) ListShelvesForUser(ctx context.Context, userID int64) ([]ListShelvesForUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, listShelvesForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListShelvesForUserRow
+	for rows.Next() {
+		var i ListShelvesForUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.Description,
+			&i.IsPublic,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerUsername,
+			&i.OwnerDisplayName,
+			&i.BookCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTags = `-- name: ListTags :many
 SELECT t.id, t.name, t.created_at, COUNT(bt.book_id) as book_count
 FROM tags t
@@ -1163,6 +1477,21 @@ func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const removeBookFromShelf = `-- name: RemoveBookFromShelf :exec
+DELETE FROM shelf_books
+WHERE shelf_id = ? AND book_id = ?
+`
+
+type RemoveBookFromShelfParams struct {
+	ShelfID int64 `json:"shelf_id"`
+	BookID  int64 `json:"book_id"`
+}
+
+func (q *Queries) RemoveBookFromShelf(ctx context.Context, arg RemoveBookFromShelfParams) error {
+	_, err := q.db.ExecContext(ctx, removeBookFromShelf, arg.ShelfID, arg.BookID)
+	return err
 }
 
 const searchBooksFTS = `-- name: SearchBooksFTS :many
@@ -1446,6 +1775,45 @@ func (q *Queries) UpdateBookMetadata(ctx context.Context, arg UpdateBookMetadata
 		&i.Series,
 		&i.SeriesIndex,
 		&i.CoverPath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateShelf = `-- name: UpdateShelf :one
+UPDATE shelves
+SET name = ?,
+    description = ?,
+    is_public = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND user_id = ?
+RETURNING id, user_id, name, description, is_public, created_at, updated_at
+`
+
+type UpdateShelfParams struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	IsPublic    int64  `json:"is_public"`
+	ID          int64  `json:"id"`
+	UserID      int64  `json:"user_id"`
+}
+
+func (q *Queries) UpdateShelf(ctx context.Context, arg UpdateShelfParams) (Shelf, error) {
+	row := q.db.QueryRowContext(ctx, updateShelf,
+		arg.Name,
+		arg.Description,
+		arg.IsPublic,
+		arg.ID,
+		arg.UserID,
+	)
+	var i Shelf
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.IsPublic,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

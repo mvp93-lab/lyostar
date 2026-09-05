@@ -38,6 +38,15 @@
         {{ book.format || 'epub' }}
       </div>
 
+      <!-- Quick Shelf button on top-right (visible on hover) -->
+      <button
+        @click.stop="$emit('open-shelf', book)"
+        class="absolute top-2 right-2 p-1.5 rounded-lg bg-black/70 backdrop-blur-md border border-white/[0.1] text-slate-300 hover:text-glacier-400 hover:border-glacier-400/40 opacity-0 group-hover:opacity-100 transition-all z-10 cursor-pointer"
+        title="Add to shelf"
+      >
+        <Bookmark class="w-3.5 h-3.5" />
+      </button>
+
       <!-- Reading Progress Bar on bottom of cover -->
       <div v-if="book.progress > 0" class="absolute bottom-0 inset-x-0 bg-black/70 backdrop-blur-sm px-2 py-1.5 flex flex-col gap-1">
         <div class="flex items-center justify-between text-[10px] font-medium leading-none">
@@ -108,7 +117,7 @@
 </template>
 
 <script setup>
-import { Book, BookOpen, FileText } from 'lucide-vue-next'
+import { Book, BookOpen, FileText, Bookmark } from 'lucide-vue-next'
 import { useAuth } from '../composables/useAuth'
 
 const props = defineProps({
@@ -118,7 +127,7 @@ const props = defineProps({
   }
 })
 
-defineEmits(['select', 'read', 'filter-tag'])
+defineEmits(['select', 'read', 'filter-tag', 'open-shelf'])
 const { canRead } = useAuth()
 
 function formatAuthors(authors) {

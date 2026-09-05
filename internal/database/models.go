@@ -68,6 +68,22 @@ type Session struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type Shelf struct {
+	ID          int64     `json:"id"`
+	UserID      int64     `json:"user_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	IsPublic    int64     `json:"is_public"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type ShelfBook struct {
+	ShelfID int64     `json:"shelf_id"`
+	BookID  int64     `json:"book_id"`
+	AddedAt time.Time `json:"added_at"`
+}
+
 type Tag struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`

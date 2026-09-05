@@ -59,6 +59,15 @@
             Download {{ (currentBook.format || 'epub').toUpperCase() }}
           </a>
 
+          <!-- Add to Shelf Button -->
+          <button
+            @click="showShelfModal = true"
+            class="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-300 hover:text-white text-xs font-medium transition-all cursor-pointer"
+          >
+            <Bookmark class="w-4 h-4 text-glacier-400" />
+            Add to Shelf
+          </button>
+
           <!-- Edit Metadata Button (can_edit) -->
           <button
             v-if="canEdit"
@@ -401,14 +410,23 @@
         </div>
       </div>
     </div>
+
+    <!-- Shelf Select Modal -->
+    <ShelfSelectModal
+      v-if="showShelfModal"
+      :book="currentBook"
+      @close="showShelfModal = false"
+      @updated="$emit('shelf-updated', $event)"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { X, Book, BookOpen, Download, FileText, Pencil, Trash2, Save, Loader2, AlertCircle, Tag } from 'lucide-vue-next'
+import { X, Book, BookOpen, Download, FileText, Pencil, Trash2, Save, Loader2, AlertCircle, Tag, Bookmark } from 'lucide-vue-next'
 import { useAuth } from '../composables/useAuth'
 import { updateBookMetadata, deleteBook, fetchTags } from '../api/client'
+import ShelfSelectModal from './ShelfSelectModal.vue'
 
 const props = defineProps({
   book: {
@@ -417,10 +435,11 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'read', 'update', 'delete', 'filter-tag'])
+const emit = defineEmits(['close', 'read', 'update', 'delete', 'filter-tag', 'shelf-updated'])
 const { canRead, canDownload, canEdit, canDelete } = useAuth()
 
 const currentBook = ref(null)
+const showShelfModal = ref(false)
 const isEditing = ref(false)
 const saving = ref(false)
 const editError = ref('')

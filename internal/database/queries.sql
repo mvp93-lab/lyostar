@@ -322,3 +322,78 @@ JOIN book_tags bt ON b.id = bt.book_id
 JOIN tags t ON bt.tag_id = t.id
 WHERE t.name = ?;
 
+-- name: CreateShelf :one
+INSERT INTO shelves (user_id, name, description, is_public)
+VALUES (?, ?, ?, ?)
+RETURNING *;
+
+-- name: GetShelfByID :one
+SELECT * FROM shelves
+WHERE id = ? LIMIT 1;
+
+-- name: GetShelfByNameAndUser :one
+SELECT * FROM shelves
+WHERE user_id = ? AND name = ? LIMIT 1;
+
+-- name: ListShelvesForUser :many
+SELECT 
+    s.id, s.user_id, s.name, s.description, s.is_public, s.created_at, s.updated_at,
+    u.username as owner_username,
+    u.display_name as owner_display_name,
+    COUNT(sb.book_id) as book_count
+FROM shelves s
+JOIN users u ON s.user_id = u.id
+LEFT JOIN shelf_books sb ON s.id = sb.shelf_id
+WHERE s.user_id = ? OR s.is_public = 1
+GROUP BY s.id
+ORDER BY s.is_public ASC, s.name ASC;
+
+-- name: UpdateShelf :one
+UPDATE shelves
+SET name = ?,
+    description = ?,
+    is_public = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND user_id = ?
+RETURNING *;
+
+-- name: DeleteShelf :exec
+DELETE FROM shelves
+WHERE id = ? AND user_id = ?;
+
+-- name: AddBookToShelf :exec
+INSERT OR IGNORE INTO shelf_books (shelf_id, book_id)
+VALUES (?, ?);
+
+-- name: RemoveBookFromShelf :exec
+DELETE FROM shelf_books
+WHERE shelf_id = ? AND book_id = ?;
+
+-- name: GetBookShelfIDsForUser :many
+SELECT sb.shelf_id
+FROM shelf_books sb
+JOIN shelves s ON sb.shelf_id = s.id
+WHERE sb.book_id = ? AND s.user_id = ?;
+
+-- name: ListBooksByShelfWithAuthorsAndProgress :many
+SELECT
+    b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
+    b.description, b.publisher, b.language, b.pub_date, b.series,
+    b.series_index, b.cover_path, b.created_at, b.updated_at,
+    coalesce((SELECT GROUP_CONCAT(a.name, ', ') FROM book_authors ba JOIN authors a ON ba.author_id = a.id WHERE ba.book_id = b.id), '') as author_names,
+    coalesce((SELECT GROUP_CONCAT(t.name, ', ') FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = b.id), '') as tag_names,
+    coalesce(rp.progress, 0.0) as user_progress,
+    coalesce(rp.is_finished, 0) as user_is_finished,
+    sb.added_at as shelf_added_at
+FROM shelf_books sb
+JOIN books b ON sb.book_id = b.id
+LEFT JOIN reading_progress rp ON b.id = rp.book_id AND rp.user_id = ?
+WHERE sb.shelf_id = ?
+ORDER BY sb.added_at DESC
+LIMIT ? OFFSET ?;
+
+-- name: CountBooksByShelf :one
+SELECT COUNT(*)
+FROM shelf_books
+WHERE shelf_id = ?;
+
