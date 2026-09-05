@@ -469,31 +469,53 @@
                   </button>
                 </div>
 
-                <!-- Autocomplete Suggestions Dropdown -->
+                <!-- Autocomplete & Create Series Dropdown -->
                 <div
-                  v-if="showSeriesDropdown && filteredSeriesSuggestions.length > 0"
-                  class="absolute left-0 right-0 top-full mt-1.5 z-30 bg-[#161923] border border-white/[0.12] rounded-xl shadow-2xl shadow-black/80 max-h-48 overflow-y-auto py-1 backdrop-blur-md"
+                  v-if="showSeriesDropdown && (filteredSeriesSuggestions.length > 0 || (editForm.series && editForm.series.trim()))"
+                  class="absolute left-0 right-0 top-full mt-1.5 z-30 bg-[#161923] border border-white/[0.12] rounded-xl shadow-2xl shadow-black/80 max-h-56 overflow-y-auto py-1 backdrop-blur-md"
                 >
-                  <div class="px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-white/[0.06] flex items-center justify-between">
-                    <span>Existing Series</span>
-                    <span>{{ filteredSeriesSuggestions.length }} matches</span>
+                  <!-- Option to Create New Series if text typed is not an exact match -->
+                  <div v-if="editForm.series && editForm.series.trim() && !isExactSeriesMatch" class="p-1.5 border-b border-white/[0.06]">
+                    <button
+                      type="button"
+                      @mousedown.prevent="createNewSeries(editForm.series)"
+                      class="w-full px-3 py-2 rounded-xl flex items-center justify-between text-left text-xs bg-glacier-500/15 hover:bg-glacier-500/25 text-glacier-300 border border-glacier-400/30 transition-all cursor-pointer group"
+                    >
+                      <div class="flex items-center gap-2 min-w-0">
+                        <Plus class="w-4 h-4 text-glacier-400 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                        <span class="font-medium truncate">
+                          Create new series: <strong class="text-white">"{{ editForm.series.trim() }}"</strong>
+                        </span>
+                      </div>
+                      <span class="text-[10px] px-2 py-0.5 rounded-md bg-glacier-400/20 text-glacier-200 font-semibold font-mono flex-shrink-0 ml-2">
+                        + New (Vol. #1)
+                      </span>
+                    </button>
                   </div>
-                  <button
-                    v-for="(s, idx) in filteredSeriesSuggestions"
-                    :key="s.name"
-                    type="button"
-                    @mousedown.prevent="selectSeries(s)"
-                    class="w-full px-3 py-2 flex items-center justify-between text-left text-xs transition-colors cursor-pointer"
-                    :class="selectedSeriesIndex === idx ? 'bg-glacier-500/20 text-glacier-300' : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'"
-                  >
-                    <div class="flex items-center gap-2 min-w-0">
-                      <Layers class="w-3.5 h-3.5 text-glacier-400/80 flex-shrink-0" />
-                      <span class="font-medium truncate">{{ s.name }}</span>
+
+                  <!-- Existing Matching Series List -->
+                  <div v-if="filteredSeriesSuggestions.length > 0">
+                    <div class="px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-white/[0.06] flex items-center justify-between">
+                      <span>Existing Series</span>
+                      <span>{{ filteredSeriesSuggestions.length }} matches</span>
                     </div>
-                    <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.06] text-slate-400 font-mono flex-shrink-0 ml-2">
-                      {{ s.book_count }} books
-                    </span>
-                  </button>
+                    <button
+                      v-for="(s, idx) in filteredSeriesSuggestions"
+                      :key="s.name"
+                      type="button"
+                      @mousedown.prevent="selectSeries(s)"
+                      class="w-full px-3 py-2 flex items-center justify-between text-left text-xs transition-colors cursor-pointer"
+                      :class="selectedSeriesIndex === idx ? 'bg-glacier-500/20 text-glacier-300' : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'"
+                    >
+                      <div class="flex items-center gap-2 min-w-0">
+                        <Layers class="w-3.5 h-3.5 text-glacier-400/80 flex-shrink-0" />
+                        <span class="font-medium truncate">{{ s.name }}</span>
+                      </div>
+                      <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.06] text-slate-400 font-mono flex-shrink-0 ml-2">
+                        {{ s.book_count }} books
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
               <div>
@@ -644,7 +666,8 @@ import {
   Bookmark, 
   Star, 
   X,
-  Layers
+  Layers,
+  Plus
 } from 'lucide-vue-next'
 import { useAuth } from '../composables/useAuth'
 import { 
@@ -731,6 +754,12 @@ const filteredSeriesSuggestions = computed(() => {
   return availableSeries.value
     .filter(s => s.name && (!query || s.name.toLowerCase().includes(query)))
     .slice(0, 8)
+})
+
+const isExactSeriesMatch = computed(() => {
+  const current = (editForm.series || '').trim().toLowerCase()
+  if (!current) return false
+  return availableSeries.value.some(s => s.name && s.name.toLowerCase() === current)
 })
 
 async function loadBookData() {
@@ -916,17 +945,38 @@ async function selectSeries(s) {
   }
 }
 
+function createNewSeries(seriesName) {
+  const trimmed = (seriesName || '').trim()
+  if (!trimmed) return
+  editForm.series = trimmed
+  if (!editForm.series_index) {
+    editForm.series_index = 1
+  }
+  showSeriesDropdown.value = false
+  selectedSeriesIndex.value = -1
+  showToast(`New series "${trimmed}" set (starts at Vol. #1)`, 'info')
+}
+
 function handleSeriesBlur() {
   setTimeout(() => {
+    if (editForm.series && editForm.series.trim() && !editForm.series_index) {
+      editForm.series_index = 1
+    }
     showSeriesDropdown.value = false
-  }, 200)
+  }, 250)
 }
 
 function handleSeriesKeyDown(e) {
   if (e.key === 'Enter') {
+    e.preventDefault()
     if (selectedSeriesIndex.value >= 0 && selectedSeriesIndex.value < filteredSeriesSuggestions.value.length) {
-      e.preventDefault()
       selectSeries(filteredSeriesSuggestions.value[selectedSeriesIndex.value])
+    } else if (editForm.series && editForm.series.trim()) {
+      if (!isExactSeriesMatch.value) {
+        createNewSeries(editForm.series)
+      } else {
+        showSeriesDropdown.value = false
+      }
     } else {
       showSeriesDropdown.value = false
     }
