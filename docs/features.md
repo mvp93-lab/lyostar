@@ -7,9 +7,9 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
 ## 📊 Tổng quan tiến độ
 
 - **Core MVP / Hạ tầng cốt lõi**: `100% Hoàn thành`
-- **Quét thư viện & Quản lý Metadata**: `90% Hoàn thành`
+- **Quét thư viện & Quản lý Metadata**: `92% Hoàn thành`
 - **Trình đọc sách (Web Readers)**: `90% Hoàn thành`
-- **Duyệt & Tổ chức thư viện**: `95% Hoàn thành`
+- **Duyệt & Tổ chức thư viện**: `98% Hoàn thành`
 - **Quản lý người dùng & Bảo mật**: `95% Hoàn thành`
 - **Kết nối thiết bị ngoài (OPDS / E-Reader)**: `0% Hoàn thành`
 
@@ -98,10 +98,22 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
   - [x] Thanh duyệt thể loại trực quan (Horizontal Genre Bar) trên Web UI kèm số lượng sách.
   - [x] Hiển thị tag pills trên thẻ sách và modal chi tiết, bấm vào để lọc nhanh thư viện theo tag.
   - [x] Chỉnh sửa danh sách Tags / Categories trực tiếp từ Metadata Editor (`can_edit`).
-- [ ] **Đánh giá sao (Rating System)**:
-  - [ ] Chấm điểm sách từ 1 đến 5 sao theo từng tài khoản.
-  - [ ] Lọc sách theo số sao đánh giá.
-- [ ] **Bộ lọc mở rộng**: Lọc theo Ngôn ngữ (Language), Nhà xuất bản (Publisher).
+- [x] **Duyệt & Quản lý Bộ sách (Series Catalog - Chuẩn Calibre-Web)**:
+  - [x] Gom nhóm và quản lý các tác phẩm theo Series/Bộ sách (ví dụ: *Harry Potter*, *Dune*, *The Lord of the Rings*).
+  - [x] Sắp xếp chính xác theo tập số (`series_index ASC, id ASC`) để người dùng theo dõi theo trình tự xuất bản.
+  - [x] Thêm mục **Series** trên Sidebar BROWSE kèm badge tổng số bộ sách (`seriesCount`).
+  - [x] Endpoint `GET /api/series` trả về danh sách series kèm số lượng sách (`book_count`).
+  - [x] Chuyên trang danh mục bộ sách (`SeriesView.vue` tại route `/series` và `/series/:series`) với tìm kiếm tức thì, huy hiệu số tập, và danh sách các tập sách theo thứ tự.
+  - [x] Huy hiệu Series badge trên thẻ sách (`BookCard.vue`) và chuyên trang chi tiết (`BookDetailView.vue`), click để chuyển nhanh vào lọc theo bộ sách.
+- [x] **Hệ thống Đánh giá sao (Rating System - 1 đến 5 sao)**:
+  - [x] Bảng SQLite `book_ratings` lưu trữ đánh giá sao riêng biệt cho từng người dùng (`user_id, book_id, rating CHECK (1..5)`).
+  - [x] Widget tương tác 5 sao trực quan trên chuyên trang chi tiết (`BookDetailView.vue`), hỗ trợ hiệu ứng hover động, chấm sao tức thì và nút xóa đánh giá (Clear rating).
+  - [x] Hiển thị điểm đánh giá trung bình cộng đồng (Community Average Rating) và số lượt đánh giá.
+  - [x] Các endpoint API RESTful: `PUT /api/books/{id}/rating`, `DELETE /api/books/{id}/rating`, tích hợp điểm sao vào `GET /api/books/{id}`.
+- [x] **Bộ lọc mở rộng theo Định dạng (Extended Format Filters)**:
+  - [x] Bộ lọc định dạng file nhanh (Pills: Tất cả / EPUB / PDF) ngay trên thanh công cụ thư viện chính.
+  - [x] Tham số truy vấn `GET /api/books?format=epub` và `format=pdf` tối ưu qua câu truy vấn SQL index.
+- [ ] **Bộ lọc mở rộng nâng cao**: Lọc theo Ngôn ngữ (Language), Nhà xuất bản (Publisher), Lọc sách theo số sao đánh giá.
 
 ---
 

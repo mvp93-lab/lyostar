@@ -482,4 +482,84 @@ RETURNING *;
 DELETE FROM highlights
 WHERE id = ? AND user_id = ?;
 
+-- ============================================================================
+-- Series Queries
+-- ============================================================================
+
+-- name: ListSeriesWithBookCount :many
+SELECT b.series, COUNT(b.id) as book_count
+FROM books b
+WHERE b.series != ''
+GROUP BY b.series
+ORDER BY b.series COLLATE NOCASE ASC;
+
+-- name: ListBooksBySeriesWithAuthorsAndProgress :many
+SELECT
+    b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
+    b.description, b.publisher, b.language, b.pub_date, b.series,
+    b.series_index, b.cover_path, b.created_at, b.updated_at,
+    coalesce((SELECT GROUP_CONCAT(a2.name, ', ') FROM book_authors ba2 JOIN authors a2 ON ba2.author_id = a2.id WHERE ba2.book_id = b.id), '') as author_names,
+    coalesce((SELECT GROUP_CONCAT(t.name, ', ') FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = b.id), '') as tag_names,
+    coalesce(rp.progress, 0.0) as user_progress,
+    coalesce(rp.is_finished, 0) as user_is_finished
+FROM books b
+LEFT JOIN reading_progress rp ON b.id = rp.book_id AND rp.user_id = ?
+WHERE b.series = ?
+ORDER BY b.series_index ASC, b.id ASC
+LIMIT ? OFFSET ?;
+
+-- name: CountBooksBySeries :one
+SELECT COUNT(b.id)
+FROM books b
+WHERE b.series = ?;
+
+-- ============================================================================
+-- Format Filtering Queries
+-- ============================================================================
+
+-- name: ListBooksByFormatWithAuthorsAndProgress :many
+SELECT
+    b.id, b.title, b.file_path, b.file_sha256, b.file_size, b.format,
+    b.description, b.publisher, b.language, b.pub_date, b.series,
+    b.series_index, b.cover_path, b.created_at, b.updated_at,
+    coalesce((SELECT GROUP_CONCAT(a.name, ', ') FROM book_authors ba JOIN authors a ON ba.author_id = a.id WHERE ba.book_id = b.id), '') as author_names,
+    coalesce((SELECT GROUP_CONCAT(t.name, ', ') FROM book_tags bt JOIN tags t ON bt.tag_id = t.id WHERE bt.book_id = b.id), '') as tag_names,
+    coalesce(rp.progress, 0.0) as user_progress,
+    coalesce(rp.is_finished, 0) as user_is_finished
+FROM books b
+LEFT JOIN reading_progress rp ON b.id = rp.book_id AND rp.user_id = ?
+WHERE b.format = ?
+ORDER BY b.id DESC
+LIMIT ? OFFSET ?;
+
+-- name: CountBooksByFormat :one
+SELECT COUNT(id) FROM books WHERE format = ?;
+
+-- ============================================================================
+-- Book Rating Queries
+-- ============================================================================
+
+-- name: SetBookRating :one
+INSERT INTO book_ratings (user_id, book_id, rating, updated_at)
+VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT(user_id, book_id) DO UPDATE SET
+    rating = excluded.rating,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+
+-- name: DeleteBookRating :exec
+DELETE FROM book_ratings
+WHERE user_id = ? AND book_id = ?;
+
+-- name: GetBookRatingForUser :one
+SELECT rating FROM book_ratings
+WHERE user_id = ? AND book_id = ? LIMIT 1;
+
+-- name: GetBookAverageRating :one
+SELECT 
+    coalesce(AVG(rating), 0.0) as avg_rating,
+    COUNT(rating) as rating_count
+FROM book_ratings
+WHERE book_id = ?;
+
 

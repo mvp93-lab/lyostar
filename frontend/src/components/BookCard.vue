@@ -81,8 +81,12 @@
       <div>
         <!-- Series Tag -->
         <div v-if="book.series" class="mb-1">
-          <span class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-glacier-400/10 text-glacier-400 border border-glacier-400/20 max-w-full truncate">
-            {{ book.series }} <span v-if="book.series_index">#{{ book.series_index }}</span>
+          <span 
+            @click.stop="$emit('filter-series', book.series)"
+            class="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-glacier-400/10 hover:bg-glacier-400/20 text-glacier-400 border border-glacier-400/20 hover:border-glacier-400/40 max-w-full truncate cursor-pointer transition-all"
+            :title="`View series: ${book.series}`"
+          >
+            {{ book.series }} <span v-if="book.series_index" class="font-mono ml-0.5">#{{ book.series_index }}</span>
           </span>
         </div>
 
@@ -137,6 +141,6 @@ const props = defineProps({
   }
 })
 
-defineEmits(['select', 'read', 'filter-tag', 'filter-author', 'open-shelf'])
+defineEmits(['select', 'read', 'filter-tag', 'filter-author', 'filter-series', 'open-shelf'])
 const { canRead } = useAuth()
 </script>

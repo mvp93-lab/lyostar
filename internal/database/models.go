@@ -38,6 +38,14 @@ type BookAuthor struct {
 	Role     string `json:"role"`
 }
 
+type BookRating struct {
+	UserID    int64     `json:"user_id"`
+	BookID    int64     `json:"book_id"`
+	Rating    int64     `json:"rating"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type BookTag struct {
 	BookID int64 `json:"book_id"`
 	TagID  int64 `json:"tag_id"`

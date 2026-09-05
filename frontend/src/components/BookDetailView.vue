@@ -173,7 +173,12 @@
           <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-white/[0.08]">
             <div class="space-y-2 min-w-0 flex-1">
               <!-- Series Badge -->
-              <div v-if="book.series" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-glacier-500/15 text-glacier-300 border border-glacier-400/30">
+              <div 
+                v-if="book.series" 
+                @click="navigateToSeries(book.series)"
+                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-glacier-500/15 hover:bg-glacier-500/25 text-glacier-300 border border-glacier-400/30 cursor-pointer transition-all"
+                :title="`View series: ${book.series}`"
+              >
                 <Bookmark class="w-3.5 h-3.5 text-glacier-400" />
                 <span>{{ book.series }}</span>
                 <span v-if="book.series_index" class="text-glacier-400 font-mono">#{{ book.series_index }}</span>
@@ -196,6 +201,48 @@
                     :title="`View books by ${author}`"
                   >
                     {{ author }}<span v-if="idx < formattedAuthorsList.length - 1" class="text-slate-500 no-underline">,</span>
+                  </span>
+                </div>
+              </div>
+
+              <!-- Star Rating Widget -->
+              <div class="flex items-center gap-3 pt-1">
+                <div class="flex items-center gap-0.5">
+                  <button
+                    v-for="star in 5"
+                    :key="star"
+                    type="button"
+                    @click="handleSetRating(star)"
+                    @mouseenter="hoverRating = star"
+                    @mouseleave="hoverRating = 0"
+                    class="p-0.5 text-slate-600 hover:scale-110 transition-transform cursor-pointer"
+                    :title="`Rate ${star} star${star > 1 ? 's' : ''}`"
+                  >
+                    <Star
+                      class="w-4 h-4 transition-colors"
+                      :class="[
+                        (hoverRating || userRating) >= star
+                          ? 'text-amber-400 fill-amber-400'
+                          : 'text-slate-600'
+                      ]"
+                    />
+                  </button>
+                </div>
+
+                <div class="flex items-center gap-2 text-xs text-slate-400">
+                  <span v-if="userRating > 0" class="font-semibold text-amber-400">
+                    Your rating: {{ userRating }}★
+                  </span>
+                  <button
+                    v-if="userRating > 0"
+                    type="button"
+                    @click="handleClearRating"
+                    class="text-[10px] text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
+                  >
+                    (Clear)
+                  </button>
+                  <span v-if="avgRating > 0" class="text-slate-500 font-mono">
+                    • Avg: {{ avgRating.toFixed(1) }}★
                   </span>
                 </div>
               </div>
@@ -551,10 +598,18 @@ import {
   AlertCircle, 
   Tag, 
   Bookmark, 
+  Star, 
   X 
 } from 'lucide-vue-next'
 import { useAuth } from '../composables/useAuth'
-import { fetchBookDetail, updateBookMetadata, deleteBook, fetchTags } from '../api/client'
+import { 
+  fetchBookDetail, 
+  updateBookMetadata, 
+  deleteBook, 
+  fetchTags,
+  setBookRating,
+  deleteBookRating 
+} from '../api/client'
 import { useToast } from '../composables/useToast'
 import ShelfSelectModal from './ShelfSelectModal.vue'
 
@@ -565,7 +620,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['read', 'filter-tag', 'filter-author', 'shelf-updated', 'deleted'])
+const emit = defineEmits(['read', 'filter-tag', 'filter-author', 'filter-series', 'shelf-updated', 'deleted'])
 
 const router = useRouter()
 const route = useRoute()
@@ -573,6 +628,9 @@ const { canRead, canDownload, canEdit, canDelete } = useAuth()
 const { showToast } = useToast()
 
 const book = ref(null)
+const userRating = ref(0)
+const avgRating = ref(0)
+const hoverRating = ref(0)
 const loading = ref(true)
 const error = ref('')
 
@@ -621,8 +679,10 @@ async function loadBookData() {
   error.value = ''
   try {
     const id = props.bookId || route.params.id
-    const data = await fetchBookDetail(id)
-    book.value = data
+    const b = await fetchBookDetail(props.bookId)
+    book.value = b
+    userRating.value = b.user_rating || 0
+    avgRating.value = b.avg_rating || 0
   } catch (err) {
     console.error('Failed to load book:', err)
     error.value = err.message || 'Book not found'
@@ -656,6 +716,33 @@ function navigateToTag(tagName) {
 function navigateToAuthor(authorName) {
   emit('filter-author', authorName)
   router.push(`/authors/${encodeURIComponent(authorName)}`)
+}
+
+function navigateToSeries(seriesName) {
+  emit('filter-series', seriesName)
+  router.push(`/series/${encodeURIComponent(seriesName)}`)
+}
+
+async function handleSetRating(star) {
+  try {
+    const res = await setBookRating(props.bookId, star)
+    userRating.value = res.user_rating || star
+    avgRating.value = res.avg_rating || star
+    showToast(`Rated ${star} stars!`, 'success')
+  } catch (err) {
+    showToast('Failed to save rating', 'error')
+  }
+}
+
+async function handleClearRating() {
+  try {
+    const res = await deleteBookRating(props.bookId)
+    userRating.value = 0
+    avgRating.value = res.avg_rating || 0
+    showToast('Rating removed', 'info')
+  } catch (err) {
+    showToast('Failed to remove rating', 'error')
+  }
 }
 
 function handleRead() {

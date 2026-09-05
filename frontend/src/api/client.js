@@ -1,10 +1,16 @@
-export async function fetchBooks({ page = 1, limit = 24, tag = '', author = '' } = {}) {
+export async function fetchBooks({ page = 1, limit = 24, tag = '', author = '', series = '', format = '' } = {}) {
   let url = `/api/books?page=${page}&limit=${limit}`
   if (tag) {
     url += `&tag=${encodeURIComponent(tag)}`
   }
   if (author) {
     url += `&author=${encodeURIComponent(author)}`
+  }
+  if (series) {
+    url += `&series=${encodeURIComponent(series)}`
+  }
+  if (format) {
+    url += `&format=${encodeURIComponent(format)}`
   }
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Failed to fetch books: ${res.statusText}`)
@@ -20,6 +26,30 @@ export async function fetchTags() {
 export async function fetchAuthors() {
   const res = await fetch('/api/authors')
   if (!res.ok) throw new Error(`Failed to fetch authors: ${res.statusText}`)
+  return res.json()
+}
+
+export async function fetchSeries() {
+  const res = await fetch('/api/series')
+  if (!res.ok) throw new Error(`Failed to fetch series: ${res.statusText}`)
+  return res.json()
+}
+
+export async function setBookRating(bookId, rating) {
+  const res = await fetch(`/api/books/${bookId}/rating`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rating })
+  })
+  if (!res.ok) throw new Error(`Failed to set rating: ${res.statusText}`)
+  return res.json()
+}
+
+export async function deleteBookRating(bookId) {
+  const res = await fetch(`/api/books/${bookId}/rating`, {
+    method: 'DELETE'
+  })
+  if (!res.ok) throw new Error(`Failed to delete rating: ${res.statusText}`)
   return res.json()
 }
 

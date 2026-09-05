@@ -31,6 +31,14 @@ const routes = [
     name: 'author-books'
   },
   {
+    path: '/series',
+    name: 'series'
+  },
+  {
+    path: '/series/:series',
+    name: 'series-books'
+  },
+  {
     path: '/shelves/:id',
     name: 'shelf-books'
   },

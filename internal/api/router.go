@@ -80,6 +80,8 @@ type BookDetailResponse struct {
 	DownloadURL string            `json:"download_url"`
 	Progress    float64           `json:"progress"`
 	IsFinished  bool              `json:"is_finished"`
+	UserRating  int64             `json:"user_rating"`
+	AvgRating   float64           `json:"avg_rating"`
 	CreatedAt   string            `json:"created_at"`
 	UpdatedAt   string            `json:"updated_at"`
 }
@@ -116,6 +118,17 @@ type AuthorRoleItem struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
 	Role string `json:"role"`
+}
+
+// SeriesItem represents a series with its book count.
+type SeriesItem struct {
+	Name      string `json:"name"`
+	BookCount int64  `json:"book_count"`
+}
+
+// RatingRequest represents payload for setting book rating.
+type RatingRequest struct {
+	Rating int64 `json:"rating"`
 }
 
 // PaginatedResponse wraps list items with pagination metadata.
@@ -201,6 +214,25 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					ID:        ar.ID,
 					Name:      ar.Name,
 					BookCount: ar.BookCount,
+				})
+			}
+
+			writeJSON(w, http.StatusOK, items)
+		})
+
+		// GET /api/series (List all series with book counts)
+		api.Get("/series", func(w http.ResponseWriter, r *http.Request) {
+			seriesRows, err := cfg.DB.ListSeriesWithBookCount(r.Context())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to query series")
+				return
+			}
+
+			items := make([]SeriesItem, 0, len(seriesRows))
+			for _, sr := range seriesRows {
+				items = append(items, SeriesItem{
+					Name:      sr.Series,
+					BookCount: sr.BookCount,
 				})
 			}
 
@@ -331,6 +363,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					offset := (page - 1) * limit
 					tagFilter := strings.TrimSpace(r.URL.Query().Get("tag"))
 					authorFilter := strings.TrimSpace(r.URL.Query().Get("author"))
+					seriesFilter := strings.TrimSpace(r.URL.Query().Get("series"))
+					formatFilter := strings.TrimSpace(r.URL.Query().Get("format"))
 
 					userID := int64(0)
 					if u := auth.GetUser(r.Context()); u != nil {
@@ -340,7 +374,65 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					var items []BookListItem
 					var total int64
 
-					if authorFilter != "" {
+					if seriesFilter != "" {
+						rows, err := cfg.DB.ListBooksBySeriesWithAuthorsAndProgress(r.Context(), database.ListBooksBySeriesWithAuthorsAndProgressParams{
+							UserID: userID,
+							Series: seriesFilter,
+							Limit:  int64(limit),
+							Offset: int64(offset),
+						})
+						if err != nil {
+							writeError(w, http.StatusInternalServerError, "failed to query books by series")
+							return
+						}
+
+						count, err := cfg.DB.CountBooksBySeries(r.Context(), seriesFilter)
+						if err != nil {
+							writeError(w, http.StatusInternalServerError, "failed to count books by series")
+							return
+						}
+						total = count
+
+						items = make([]BookListItem, 0, len(rows))
+						for _, row := range rows {
+							items = append(items, toBookListItem(
+								row.ID, row.Title, row.AuthorNames, row.TagNames, row.Description,
+								row.Publisher, row.Language, row.PubDate, row.Series,
+								row.SeriesIndex, row.FileSize, row.Format, row.CoverPath,
+								row.CreatedAt, row.UpdatedAt,
+								row.UserProgress, row.UserIsFinished == 1,
+							))
+						}
+					} else if formatFilter != "" {
+						rows, err := cfg.DB.ListBooksByFormatWithAuthorsAndProgress(r.Context(), database.ListBooksByFormatWithAuthorsAndProgressParams{
+							UserID: userID,
+							Format: strings.ToLower(formatFilter),
+							Limit:  int64(limit),
+							Offset: int64(offset),
+						})
+						if err != nil {
+							writeError(w, http.StatusInternalServerError, "failed to query books by format")
+							return
+						}
+
+						count, err := cfg.DB.CountBooksByFormat(r.Context(), strings.ToLower(formatFilter))
+						if err != nil {
+							writeError(w, http.StatusInternalServerError, "failed to count books by format")
+							return
+						}
+						total = count
+
+						items = make([]BookListItem, 0, len(rows))
+						for _, row := range rows {
+							items = append(items, toBookListItem(
+								row.ID, row.Title, row.AuthorNames, row.TagNames, row.Description,
+								row.Publisher, row.Language, row.PubDate, row.Series,
+								row.SeriesIndex, row.FileSize, row.Format, row.CoverPath,
+								row.CreatedAt, row.UpdatedAt,
+								row.UserProgress, row.UserIsFinished == 1,
+							))
+						}
+					} else if authorFilter != "" {
 						rows, err := cfg.DB.ListBooksByAuthorWithAuthorsAndProgress(r.Context(), database.ListBooksByAuthorWithAuthorsAndProgressParams{
 							UserID: userID,
 							Name:   authorFilter,
@@ -485,11 +577,21 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 					var userProgress float64
 					var isFinished bool
+					var userRating int64
 					if u := auth.GetUser(r.Context()); u != nil {
 						if prog, err := cfg.DB.GetProgress(r.Context(), database.GetProgressParams{UserID: u.ID, BookID: b.ID}); err == nil {
 							userProgress = prog.Progress
 							isFinished = prog.IsFinished == 1
 						}
+						if r, err := cfg.DB.GetBookRatingForUser(r.Context(), database.GetBookRatingForUserParams{UserID: u.ID, BookID: b.ID}); err == nil {
+							userRating = r
+						}
+					}
+
+					avgRow, _ := cfg.DB.GetBookAverageRating(r.Context(), b.ID)
+					var avgRating float64
+					if avgFloat, ok := avgRow.AvgRating.(float64); ok {
+						avgRating = avgFloat
 					}
 
 					writeJSON(w, http.StatusOK, BookDetailResponse{
@@ -511,10 +613,98 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						DownloadURL: fmt.Sprintf("/api/books/%d/download", b.ID),
 						Progress:    userProgress,
 						IsFinished:  isFinished,
+						UserRating:  userRating,
+						AvgRating:   avgRating,
 						CreatedAt:   formatTime(b.CreatedAt),
 						UpdatedAt:   formatTime(b.UpdatedAt),
 					})
 				})
+
+				// PUT /api/books/{id}/rating (Rate book 1-5 stars)
+				book.Put("/rating", func(w http.ResponseWriter, r *http.Request) {
+					id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+					if err != nil {
+						writeError(w, http.StatusBadRequest, "invalid book id")
+						return
+					}
+
+					u := auth.GetUser(r.Context())
+					if u == nil {
+						writeError(w, http.StatusUnauthorized, "unauthorized")
+						return
+					}
+
+					var req RatingRequest
+					if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+						writeError(w, http.StatusBadRequest, "invalid request body")
+						return
+					}
+
+					if req.Rating < 1 || req.Rating > 5 {
+						writeError(w, http.StatusBadRequest, "rating must be between 1 and 5")
+						return
+					}
+
+					ratingRow, err := cfg.DB.SetBookRating(r.Context(), database.SetBookRatingParams{
+						UserID: u.ID,
+						BookID: id,
+						Rating: req.Rating,
+					})
+					if err != nil {
+						writeError(w, http.StatusInternalServerError, "failed to set rating")
+						return
+					}
+
+					avgRow, _ := cfg.DB.GetBookAverageRating(r.Context(), id)
+					var avgRating float64
+					if avgFloat, ok := avgRow.AvgRating.(float64); ok {
+						avgRating = avgFloat
+					}
+
+					writeJSON(w, http.StatusOK, map[string]any{
+						"book_id":      id,
+						"user_rating":  ratingRow.Rating,
+						"avg_rating":   avgRating,
+						"rating_count": avgRow.RatingCount,
+					})
+				})
+
+				// DELETE /api/books/{id}/rating (Remove book rating)
+				book.Delete("/rating", func(w http.ResponseWriter, r *http.Request) {
+					id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+					if err != nil {
+						writeError(w, http.StatusBadRequest, "invalid book id")
+						return
+					}
+
+					u := auth.GetUser(r.Context())
+					if u == nil {
+						writeError(w, http.StatusUnauthorized, "unauthorized")
+						return
+					}
+
+					if err := cfg.DB.DeleteBookRating(r.Context(), database.DeleteBookRatingParams{
+						UserID: u.ID,
+						BookID: id,
+					}); err != nil {
+						writeError(w, http.StatusInternalServerError, "failed to delete rating")
+						return
+					}
+
+					avgRow, _ := cfg.DB.GetBookAverageRating(r.Context(), id)
+					var avgRating float64
+					if avgFloat, ok := avgRow.AvgRating.(float64); ok {
+						avgRating = avgFloat
+					}
+
+					writeJSON(w, http.StatusOK, map[string]any{
+						"book_id":      id,
+						"user_rating":  0,
+						"avg_rating":   avgRating,
+						"rating_count": avgRow.RatingCount,
+					})
+				})
+
 
 				// GET /api/books/{id}/cover
 				book.Get("/cover", func(w http.ResponseWriter, r *http.Request) {
