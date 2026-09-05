@@ -189,6 +189,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 				// Register reading progress routes (/continue-reading, /{id}/progress)
 				RegisterProgressRoutes(books, cfg.DB.Queries)
 
+				// Register bookmarks and highlights routes (/{id}/bookmarks, /{id}/highlights)
+				RegisterBookmarkAndHighlightRoutes(books, cfg.DB.Queries)
+
 				// POST /api/books/upload (Upload ebook, requires can_upload)
 				books.With(RequireUpload).Post("/upload", func(w http.ResponseWriter, r *http.Request) {
 					if cfg.UploadsDir == "" {

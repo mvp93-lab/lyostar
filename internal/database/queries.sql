@@ -397,3 +397,56 @@ SELECT COUNT(*)
 FROM shelf_books
 WHERE shelf_id = ?;
 
+-- Bookmarks queries
+-- name: ListBookmarksForUserAndBook :many
+SELECT * FROM bookmarks
+WHERE user_id = ? AND book_id = ?
+ORDER BY created_at DESC;
+
+-- name: GetBookmarkByID :one
+SELECT * FROM bookmarks
+WHERE id = ? LIMIT 1;
+
+-- name: CreateBookmark :one
+INSERT INTO bookmarks (
+    user_id, book_id, title, location, progress, created_at
+) VALUES (
+    ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
+)
+RETURNING *;
+
+-- name: DeleteBookmark :exec
+DELETE FROM bookmarks
+WHERE id = ? AND user_id = ?;
+
+-- Highlights & Notes queries
+-- name: ListHighlightsForUserAndBook :many
+SELECT * FROM highlights
+WHERE user_id = ? AND book_id = ?
+ORDER BY created_at DESC;
+
+-- name: GetHighlightByID :one
+SELECT * FROM highlights
+WHERE id = ? LIMIT 1;
+
+-- name: CreateHighlight :one
+INSERT INTO highlights (
+    user_id, book_id, location, selected_text, note, color, created_at, updated_at
+) VALUES (
+    ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+)
+RETURNING *;
+
+-- name: UpdateHighlight :one
+UPDATE highlights
+SET note = ?,
+    color = ?,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = ? AND user_id = ?
+RETURNING *;
+
+-- name: DeleteHighlight :exec
+DELETE FROM highlights
+WHERE id = ? AND user_id = ?;
+
+

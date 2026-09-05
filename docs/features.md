@@ -8,7 +8,7 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
 
 - **Core MVP / Hạ tầng cốt lõi**: `100% Hoàn thành`
 - **Quét thư viện & Quản lý Metadata**: `90% Hoàn thành`
-- **Trình đọc sách (Web Readers)**: `75% Hoàn thành`
+- **Trình đọc sách (Web Readers)**: `90% Hoàn thành`
 - **Duyệt & Tổ chức thư viện**: `95% Hoàn thành`
 - **Quản lý người dùng & Bảo mật**: `95% Hoàn thành`
 - **Kết nối thiết bị ngoài (OPDS / E-Reader)**: `0% Hoàn thành`
@@ -44,12 +44,13 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
   - [x] Lưu chính xác vị trí đọc (Foliate CFI đối với EPUB, số trang đối với PDF).
   - [x] Lưu tỉ lệ đọc xong (`0.0` đến `1.0`) và trạng thái hoàn thành.
   - [x] Tự động cuộn/mở đúng trang đang đọc dang dở khi người dùng quay lại.
+- [x] **Đánh dấu trang (Bookmarks) & Ghi chú (Highlights/Notes)**:
+  - [x] Cho phép user lưu các điểm đánh dấu trang yêu thích (1-click bookmark toggle trên thanh công cụ Reader).
+  - [x] Tô màu đoạn văn bản và ghi chú trích dẫn cá nhân (4 mã màu: Vàng, Xanh lá, Xanh dương, Hồng) kèm xem / sửa / xóa.
+  - [x] Ngăn kéo tiện ích bên cạnh (Side Drawer) trong trình đọc với 3 tab: Bookmarks, Notes, và Mục lục (TOC) hỗ trợ nhảy tới vị trí đọc tức thì (1-click jump).
 - [ ] **Trình đọc Comic / Manga (CBZ / CBR)**:
   - [ ] Parser đọc danh sách ảnh từ file nén `.cbz` (zip) và `.cbr` (rar).
   - [ ] Web viewer đọc truyện tranh (chế độ cuộn dọc Webtoon hoặc lật trang đôi).
-- [ ] **Đánh dấu trang (Bookmarks) & Ghi chú (Highlights/Notes)**:
-  - [ ] Cho phép user lưu các điểm đánh dấu trang yêu thích.
-  - [ ] Tô màu đoạn văn bản và ghi chú trích dẫn cá nhân.
 
 ---
 

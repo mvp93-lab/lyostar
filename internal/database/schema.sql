@@ -168,3 +168,31 @@ CREATE TABLE IF NOT EXISTS shelf_books (
 
 CREATE INDEX IF NOT EXISTS idx_shelf_books_book_id ON shelf_books(book_id);
 
+-- Bookmarks
+CREATE TABLE IF NOT EXISTS bookmarks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    location TEXT NOT NULL,
+    progress REAL NOT NULL DEFAULT 0.0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_bookmarks_user_book ON bookmarks(user_id, book_id);
+
+-- Highlights & Notes
+CREATE TABLE IF NOT EXISTS highlights (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+    location TEXT NOT NULL,
+    selected_text TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    color TEXT NOT NULL DEFAULT 'yellow',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_highlights_user_book ON highlights(user_id, book_id);
+

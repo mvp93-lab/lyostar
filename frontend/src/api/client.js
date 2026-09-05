@@ -182,3 +182,69 @@ export async function updateBookShelves(bookId, shelfIds) {
   return data
 }
 
+// Bookmarks API
+export async function fetchBookmarks(bookId) {
+  const res = await fetch(`/api/books/${bookId}/bookmarks`)
+  if (!res.ok) throw new Error('Failed to fetch bookmarks')
+  return res.json()
+}
+
+export async function createBookmark(bookId, data) {
+  const res = await fetch(`/api/books/${bookId}/bookmarks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || 'Failed to create bookmark')
+  return json
+}
+
+export async function deleteBookmark(bookId, bookmarkId) {
+  const res = await fetch(`/api/books/${bookId}/bookmarks/${bookmarkId}`, {
+    method: 'DELETE'
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || 'Failed to delete bookmark')
+  return json
+}
+
+// Highlights & Notes API
+export async function fetchHighlights(bookId) {
+  const res = await fetch(`/api/books/${bookId}/highlights`)
+  if (!res.ok) throw new Error('Failed to fetch highlights')
+  return res.json()
+}
+
+export async function createHighlight(bookId, data) {
+  const res = await fetch(`/api/books/${bookId}/highlights`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || 'Failed to create highlight')
+  return json
+}
+
+export async function updateHighlight(bookId, highlightId, data) {
+  const res = await fetch(`/api/books/${bookId}/highlights/${highlightId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || 'Failed to update highlight')
+  return json
+}
+
+export async function deleteHighlight(bookId, highlightId) {
+  const res = await fetch(`/api/books/${bookId}/highlights/${highlightId}`, {
+    method: 'DELETE'
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || 'Failed to delete highlight')
+  return json
+}
+
+
