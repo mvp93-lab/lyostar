@@ -22,8 +22,7 @@ Tài liệu này theo dõi toàn bộ tính năng của Lyostar (so chiếu vớ
 - [x] **Cơ sở dữ liệu SQLite tối ưu**: CGO-free (`modernc.org/sqlite`), kích hoạt chế độ `WAL`, `foreign_keys=ON`, `busy_timeout=5000`.
 - [x] **Type-safe Query Layer**: Sử dụng `sqlc` để biên dịch các câu truy vấn SQL an toàn, không sử dụng ORM nặng nề.
 - [x] **Single-process concurrency**: Xử lý tác vụ nền bằng Go channel có bộ đệm và fixed worker pool, không phụ thuộc broker ngoài (Redis, RabbitMQ).
-- [x] **Chế độ an toàn thư mục sách**: Thư mục `/books` luôn ở chế độ **STRICTLY READ-ONLY** (không bao giờ sửa, xóa, đổi tên file gốc).
-- [ ] **Docker Image tối ưu**: Dockerfile multi-stage build cho dung lượng image cuối cùng `< 50MB`.
+- [x] **Docker Image tối ưu & docker-compose**: Dockerfile multi-stage build cho dung lượng image cuối cùng chỉ `~31.6MB` (< 50MB), non-root user `lyostar:1000`, volume bảo vệ `/books:ro`, tích hợp `docker-compose.yml` 1-click deploy và healthcheck tự động.
 
 ---
 

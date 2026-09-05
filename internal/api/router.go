@@ -25,10 +25,81 @@ import (
 type RouterConfig struct {
 	DB         *database.DB
 	Scanner    *scanner.Scanner
+	BooksDir   string
+	DataDir    string
 	UploadsDir string
 	StaticFS   fs.FS
 	Version    string
 }
+
+// resolveFilePath resolves a file or cover path safely against DataDir, BooksDir, or current working directory.
+func (cfg *RouterConfig) resolveFilePath(p string) (string, bool) {
+	if p == "" {
+		return "", false
+	}
+
+	// 1. Direct check
+	if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+		return p, true
+	}
+
+	clean := filepath.Clean(p)
+
+	// 2. Check relative to DataDir
+	if cfg.DataDir != "" {
+		rel := clean
+		if strings.HasPrefix(clean, "/data/") {
+			rel = strings.TrimPrefix(clean, "/data/")
+		} else if strings.HasPrefix(clean, "data/") {
+			rel = strings.TrimPrefix(clean, "data/")
+		}
+		cand := filepath.Join(cfg.DataDir, rel)
+		if fi, err := os.Stat(cand); err == nil && !fi.IsDir() {
+			return cand, true
+		}
+
+		// Also check in DataDir/cache/covers/basename
+		candCover := filepath.Join(cfg.DataDir, "cache", "covers", filepath.Base(clean))
+		if fi, err := os.Stat(candCover); err == nil && !fi.IsDir() {
+			return candCover, true
+		}
+
+		// Also check in DataDir/uploads/basename
+		candUpload := filepath.Join(cfg.DataDir, "uploads", filepath.Base(clean))
+		if fi, err := os.Stat(candUpload); err == nil && !fi.IsDir() {
+			return candUpload, true
+		}
+	}
+
+	// 3. Check relative to BooksDir
+	if cfg.BooksDir != "" {
+		rel := clean
+		if strings.HasPrefix(clean, "/books/") {
+			rel = strings.TrimPrefix(clean, "/books/")
+		} else if strings.HasPrefix(clean, "books/") {
+			rel = strings.TrimPrefix(clean, "books/")
+		}
+		cand := filepath.Join(cfg.BooksDir, rel)
+		if fi, err := os.Stat(cand); err == nil && !fi.IsDir() {
+			return cand, true
+		}
+		candBase := filepath.Join(cfg.BooksDir, filepath.Base(clean))
+		if fi, err := os.Stat(candBase); err == nil && !fi.IsDir() {
+			return candBase, true
+		}
+	}
+
+	// 4. Check relative to UploadsDir
+	if cfg.UploadsDir != "" {
+		candUpload := filepath.Join(cfg.UploadsDir, filepath.Base(clean))
+		if fi, err := os.Stat(candUpload); err == nil && !fi.IsDir() {
+			return candUpload, true
+		}
+	}
+
+	return p, false
+}
+
 
 // HealthResponse represents the health check payload.
 type HealthResponse struct {
@@ -720,14 +791,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						return
 					}
 
-					if _, err := os.Stat(b.CoverPath); err != nil {
+					coverPath, ok := cfg.resolveFilePath(b.CoverPath)
+					if !ok {
 						writeError(w, http.StatusNotFound, "cover file not found")
 						return
 					}
 
 					w.Header().Set("Cache-Control", "public, max-age=86400")
 					w.Header().Set("Content-Type", "image/webp")
-					http.ServeFile(w, r, b.CoverPath)
+					http.ServeFile(w, r, coverPath)
 				})
 
 				// GET /api/books/{id}/file (Read in browser, requires can_read)
@@ -744,12 +816,13 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						return
 					}
 
-					if _, err := os.Stat(b.FilePath); err != nil {
+					filePath, ok := cfg.resolveFilePath(b.FilePath)
+					if !ok {
 						writeError(w, http.StatusNotFound, "book file not found")
 						return
 					}
 
-					filename := filepath.Base(b.FilePath)
+					filename := filepath.Base(filePath)
 					switch strings.ToLower(b.Format) {
 					case "pdf":
 						w.Header().Set("Content-Type", "application/pdf")
@@ -757,7 +830,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						w.Header().Set("Content-Type", "application/epub+zip")
 					}
 					w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
-					http.ServeFile(w, r, b.FilePath)
+					http.ServeFile(w, r, filePath)
 				})
 
 				// GET /api/books/{id}/download (Direct file download, requires can_download)
@@ -774,12 +847,13 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						return
 					}
 
-					if _, err := os.Stat(b.FilePath); err != nil {
+					filePath, ok := cfg.resolveFilePath(b.FilePath)
+					if !ok {
 						writeError(w, http.StatusNotFound, "book file not found")
 						return
 					}
 
-					filename := filepath.Base(b.FilePath)
+					filename := filepath.Base(filePath)
 					switch strings.ToLower(b.Format) {
 					case "pdf":
 						w.Header().Set("Content-Type", "application/pdf")
@@ -787,7 +861,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						w.Header().Set("Content-Type", "application/epub+zip")
 					}
 					w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
-					http.ServeFile(w, r, b.FilePath)
+					http.ServeFile(w, r, filePath)
 				})
 
 				// PUT /api/books/{id} (Update book metadata, requires can_edit)
@@ -963,16 +1037,20 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 					// Remove cover thumbnail cache file if exists
 					if b.CoverPath != "" {
-						_ = os.Remove(b.CoverPath)
+						if cp, ok := cfg.resolveFilePath(b.CoverPath); ok {
+							_ = os.Remove(cp)
+						}
 					}
 
 					// Strictly read-only policy:
 					// ONLY remove file on disk if it was uploaded to UploadsDir!
 					// Files in /books are strictly read-only and preserved on disk.
 					if cfg.UploadsDir != "" && b.FilePath != "" {
-						rel, err := filepath.Rel(cfg.UploadsDir, b.FilePath)
-						if err == nil && !strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel) {
-							_ = os.Remove(b.FilePath)
+						if fp, ok := cfg.resolveFilePath(b.FilePath); ok {
+							rel, err := filepath.Rel(cfg.UploadsDir, fp)
+							if err == nil && !strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel) {
+								_ = os.Remove(fp)
+							}
 						}
 					}
 

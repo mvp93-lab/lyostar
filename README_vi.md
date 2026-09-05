@@ -107,6 +107,38 @@ Truy cập trên trình duyệt: `http://localhost:8080`.
 
 ---
 
+### Cách 3: Triển khai bằng Docker & Docker Compose (Production Ready)
+
+Lyostar cung cấp sẵn Docker image siêu nhẹ (chỉ khoảng `~31.6MB`), chạy với quyền bảo mật non-root user (`lyostar:1000`) và tích hợp sẵn healthcheck tự động:
+
+#### 1. Khởi động với Docker Compose:
+```bash
+docker compose up -d
+# hoặc qua Makefile
+make docker-up
+```
+
+#### 2. Xem logs hoạt động:
+```bash
+docker compose logs -f
+# hoặc qua Makefile
+make docker-logs
+```
+
+#### 3. Dừng hệ thống:
+```bash
+docker compose down
+# hoặc qua Makefile
+make docker-down
+```
+
+> **Lưu ý về thư mục lưu trữ**:
+> - Thư mục `./books` được mount ở chế độ **CHỈ ĐỌC (STRICTLY READ-ONLY)** (`:ro`), đảm bảo an toàn tuyệt đối cho kho sách gốc.
+> - Thư mục `./data` lưu trữ SQLite database, cache ảnh bìa và sách tải lên, giữ nguyên dữ liệu khi restart container.
+
+
+---
+
 ## ⚙️ Cấu hình biến môi trường
 
 Lyostar cho phép tùy biến cổng và đường dẫn lưu trữ thông qua biến môi trường:

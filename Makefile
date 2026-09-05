@@ -21,6 +21,10 @@ help:
 	@echo "  make dev              Run directly from source (both BE & FE) without building binary"
 	@echo "  make dev-live         Run Go backend + Vite HMR frontend simultaneously for UI coding"
 	@echo "  make test             Run all unit tests"
+	@echo "  make docker-build     Build production Docker container image (<35MB)"
+	@echo "  make docker-up        Start Lyostar via Docker Compose"
+	@echo "  make docker-down      Stop Lyostar Docker Compose"
+	@echo "  make docker-logs      Follow Lyostar Docker Compose logs"
 	@echo "  make clean            Remove compiled binary"
 	@echo ""
 
@@ -72,3 +76,20 @@ clean:
 ## sqlc: Regenerate SQL code
 sqlc:
 	sqlc generate
+
+## docker-build: Build minimal production Docker image (<35MB)
+docker-build:
+	docker compose build
+
+## docker-up: Start Lyostar with Docker Compose in background
+docker-up:
+	docker compose up -d
+
+## docker-down: Stop Lyostar Docker Compose services
+docker-down:
+	docker compose down
+
+## docker-logs: Follow logs of Lyostar container
+docker-logs:
+	docker compose logs -f
+

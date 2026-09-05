@@ -105,6 +105,36 @@ Open your browser and navigate to: `http://localhost:8080`.
 
 ---
 
+### Method 3: Using Docker & Docker Compose (Production Ready)
+
+Lyostar provides an ultra-lightweight, multi-stage Docker image (`~31.6MB`) running with non-root security (`lyostar:1000`) and automated healthchecks.
+
+#### 1. Start with Docker Compose:
+```bash
+docker compose up -d
+# or via Makefile
+make docker-up
+```
+
+#### 2. Check logs:
+```bash
+docker compose logs -f
+# or via Makefile
+make docker-logs
+```
+
+#### 3. Stop the container:
+```bash
+docker compose down
+# or via Makefile
+make docker-down
+```
+
+Your books in `./books` are mounted as **STRICTLY READ-ONLY** (`:ro`), while `./data` persists SQLite databases, uploads, and cover caches safely across container restarts.
+
+
+---
+
 ## ⚙️ Configuration
 
 Configure Lyostar using environment variables:

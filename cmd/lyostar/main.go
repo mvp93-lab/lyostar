@@ -60,6 +60,8 @@ func main() {
 	router := api.NewRouter(api.RouterConfig{
 		DB:         db,
 		Scanner:    bookScanner,
+		BooksDir:   cfg.BooksDir,
+		DataDir:    cfg.DataDir,
 		UploadsDir: uploadsDir,
 		StaticFS:   distFS,
 		Version:    "0.1.0-dev",
