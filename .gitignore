@@ -1,6 +1,6 @@
 # Binaries
-lyostar
-lyostar.exe
+/lyostar
+/lyostar.exe
 *.exe
 *.dll
 *.so

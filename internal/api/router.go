@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -329,15 +330,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 						return
 					}
 
-					// Limit upload body to 100MB
+					// Limit upload body to 100MB (keep max 10MB in RAM, spill rest to disk)
 					r.Body = http.MaxBytesReader(w, r.Body, 100<<20)
-					if err := r.ParseMultipartForm(100 << 20); err != nil {
-						writeError(w, http.StatusBadRequest, "file too large or invalid multipart form (max 100MB)")
+					if err := r.ParseMultipartForm(10 << 20); err != nil {
+						log.Printf("[Upload] ParseMultipartForm error: %v", err)
+						writeError(w, http.StatusBadRequest, fmt.Sprintf("file too large or invalid multipart form (max 100MB): %v", err))
 						return
 					}
 
 					file, header, err := r.FormFile("file")
 					if err != nil {
+						log.Printf("[Upload] FormFile error: %v", err)
 						writeError(w, http.StatusBadRequest, "missing 'file' in upload form")
 						return
 					}
@@ -345,6 +348,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 					ext := strings.ToLower(filepath.Ext(header.Filename))
 					if ext != ".epub" && ext != ".pdf" {
+						log.Printf("[Upload] Unsupported format '%s' for file '%s'", ext, header.Filename)
 						writeError(w, http.StatusBadRequest, "unsupported file format; only .epub and .pdf are supported")
 						return
 					}
@@ -359,6 +363,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 					out, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 					if err != nil {
+						log.Printf("[Upload] Failed to create dest file %s: %v", destPath, err)
 						writeError(w, http.StatusInternalServerError, "failed to save uploaded file")
 						return
 					}
@@ -367,6 +372,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					closeErr := out.Close()
 					if copyErr != nil || closeErr != nil {
 						_ = os.Remove(destPath)
+						log.Printf("[Upload] Failed to write uploaded file %s: copyErr=%v closeErr=%v", destPath, copyErr, closeErr)
 						writeError(w, http.StatusInternalServerError, "failed to write uploaded file")
 						return
 					}
@@ -378,6 +384,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 							writeError(w, http.StatusConflict, "this book already exists in the library")
 							return
 						}
+						log.Printf("[Upload] Failed to index uploaded file %s: %v", destPath, err)
 						writeError(w, http.StatusBadRequest, fmt.Sprintf("failed to parse book: %v", err))
 						return
 					}
